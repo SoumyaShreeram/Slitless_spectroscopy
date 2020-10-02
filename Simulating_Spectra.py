@@ -20,12 +20,12 @@ The notebook is divided into the following sections:
 ## 1. Imports
 """
 
-# Commented out IPython magic to ensure Python compatibility.
 import astropy.io.fits as fits
 from scipy.sparse import csr_matrix
-
+import scipy.stats as stats
 import numpy as np
 import os
+import importlib
 
 # generate random integer values
 from random import seed
@@ -37,8 +37,11 @@ from mpl_toolkits.mplot3d.axes3d import Axes3D
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from matplotlib import cm
 
-import matplotlib
+# to show progress during computations
+from time import sleep
+import sys
 
+import matplotlib
 
 """### 1. Functions for defining input parameters
 """
@@ -216,3 +219,178 @@ def disperseStars(x_pos, y_pos, disperse_range, waves_k,  ax, dispersion_angle):
     x_disperse = np.append(x_disperse, [x_d], axis=0)
     y_disperse = np.append(y_disperse, [y_d], axis=0)
   return x_disperse, y_disperse
+
+def construct2DFluxMatrix(flux_matrix2D, y_disperse, x_disperse, flux_k2D, u_pix, disperse_range):
+    """
+    Function for constructing a 2D flux matrix that is used for plotting a spectral image in slitless mode
+    @flux_matrix2D :: 2D matrix of dimensions = (size of one grid/pointing, size of one grid/pointing)
+    @y_disperse, x_disperse :: 2Darrays holding info about the dispersion due to each star on an x-y grid
+    @flux_k2D :: 2Darrays holding info about the flux of all the stars in the k-band
+    @u_pix, disperse_range :: max number of pixels, size of the dispersion for each star
+    
+    @Returns :: flux_matrix2D :: 2D matrix filled with values
+    """
+    for i in range(len(x_pos)):
+      row = y_disperse[i]
+      col = x_disperse[i] 
+      data_norm = flux_k2D/np.max(flux_k2D)
+
+      # csr_matrix from scipy puts together a 2D matrix with the desired info
+      temp = csr_matrix((data_norm[i], (row, col)), shape=(u_pix+disperse_range, u_pix+disperse_range)).toarray()
+
+      # add all the contributions from all the stars
+      flux_matrix2D = flux_matrix2D + temp
+    return flux_matrix2D
+
+"""4.1 Add noise
+
+"""
+
+def plotContour(l_pix, u_pix, disperse_range, flux_matrix2D):
+    """
+    Function plots a contour map for the dispersion caused by slitless spectroscopy
+    @noise_level :: decides the amplitude of noise to add to the flux (in %)
+    @u_pix :: number of pixels in the FOV
+    @disperse_range :: the length dispersion range for each star
+
+    @Returns :: noise_matrix2D :: 2D noise matrix
+    """
+    fig, ax = plt.subplots(1,1,figsize=(9,8))
+
+    X, Y = np.meshgrid(np.linspace(0, u_pix+disperse_range, u_pix+disperse_range), np.linspace(0, u_pix+disperse_range, u_pix+disperse_range))
+    plot = ax.contourf(X, Y, flux_matrix2D, cmap='YlOrRd')
+
+    # labeling and setting colorbar
+    setLabel(ax, 'x-axis position', 'y-axis position', '', [l_pix, u_pix+disperse_range], [l_pix, u_pix+disperse_range], legend=False)
+    cbar = plt.colorbar(plot, aspect=10);
+    return
+
+def addNoise(noise_level, u_pix, disperse_range):
+    """Function adds noise to the 2D array 
+    @noise_level ::decis the amplitude
+    @u_pix :: number of pixels in FOV
+    @disperse_range :: the length of dispersion fr each star
+
+    @Returns :: noise_matrix2D 2Darray of flux with noise
+    """
+    shape=(u_pix+disperse_range, u_pix+disperse_range)
+    noise_matrix2D = np.random.normal(0, (noise_level*1)/100, size=shape)
+    return noise_matrix2D
+
+"""4.2 Add LSF, PSF
+
+"""
+
+def showProgress(idx, n):
+    """
+    Function prints the progress bar for a running function
+    @param idx :: iterating index
+    @param n :: total number of iterating variables/ total length
+    """
+    j = (idx+1)/n
+    sys.stdout.write('\r')
+    sys.stdout.write("[%-20s] %d%%" % ('='*int(20*j), 100*j))
+    sys.stdout.flush()
+    sleep(0.25)
+    return
+
+def redispersedXarr(i_start, i_end, x_pos, x_disperse, disperse_range):
+    """
+    Function to redefine the x-axis dispersion after adding the LSF
+    @i_start, i_end :: start and end indcies around which the x-axis is stretched
+    @x_pos :: positions of the stars in the 2x2 grid
+    @x_disperse :: shape=(#stars, len(waves_k)) is the arr that holds info about the spectra for all stars
+    @disperse_range :: size of the dispersion for each star
+    """
+    x_disperse_new = np.empty((0, len(x_disperse[0])))
+    for idx, x in enumerate(x_pos):
+        # define the start and stop indicies
+        start = x_disperse[idx][i_start]-disperse_range/2
+        stop = x_disperse[idx][i_end]+disperse_range/2
+        
+        # check that the start point is not negative (<0)
+        if start < 0:
+            start = 0
+        
+        # create the 1D array for every star and store all info in the 2D array
+        x_arr1D = np.linspace(start, stop, len(x_disperse[0]))
+        x_disperse_new = np.append(x_disperse_new, [x_arr1D], axis=0)
+    return x_disperse_new
+
+def addLSF(xy_pos, xy_disperse, sigma_xy, disperse_range, factor_widen):
+    """
+    Function adds smearing to the spectra in the x (LSF) and y (PSF) directions
+    @xy_pos :: x- or y-position of the star on the grid
+    @xy_disperse :: row indicies on the grid i.e. the spectrum following the star
+    @sigma_xy :: 1 sigma deviations from the mean 
+    @dispersion_range :: range over which the LSF affects the flux
+    @factor_widen :: factor by which the LSF/PSF widens
+    
+    @Returns :: flux_LSF2D :: 2D array holding all the flux values
+    """
+    # define the new x-direction dispersed array (boundaries widenned)
+    flux_SF2D = np.empty((0, len(xy_disperse[0])))
+    
+    # add lsf to every point of the spectrum, for every star
+    for idx, xy in enumerate(xy_pos):
+        z_lsf = np.zeros(len(xy_disperse[0]))
+        
+        print("Adding SF for star spectrum no: %d"%(idx+1))
+        # for every wavelength/point in the spectrum 
+        for i in range(len(xy_disperse[0])):
+            start = xy_disperse[idx][i]-disperse_range/factor_widen
+            stop = xy_disperse[idx][i]+disperse_range/factor_widen
+            xy_temp = np.linspace(start, stop, len(xy_disperse[0]))
+        
+            # producing a normal distribution at a different mean but with a same sigma_x 
+            # TODO: make sigma_x wavelength dependent
+            z_temp = stats.norm(xy_disperse[idx][i], sigma_xy)
+            z_lsf += z_temp.pdf(xy_temp)
+            
+            # shows a progress bar during computations
+            showProgress(i, len(xy_disperse[0]))
+            
+        # information about the background flux contribution due to LSF for every star is stored
+        flux_SF2D = np.append(flux_SF2D, [z_lsf], axis=0)
+    return flux_SF2D
+
+
+def addPSF(xy_pos, xy_disperse, sigma_xy, disperse_range, factor_widen):
+    """
+    Function adds smearing to the spectra in the x (LSF) and y (PSF) directions
+    @xy_pos :: x- or y-position of the star on the grid
+    @xy_disperse :: row indicies on the grid i.e. the spectrum following the star
+    @sigma_xy :: 1 sigma deviations from the mean 
+    @dispersion_range :: range over which the LSF affects the flux
+    @factor_widen :: factor by which the LSF/PSF widens
+    
+    @Returns :: flux_LSF2D :: 2D array holding all the flux values
+    """
+    # define the new x-direction dispersed array (boundaries widenned)
+    flux_PSF2D = np.empty((0, len(xy_disperse[0])))
+    flux_PSF3D = np.empty((0, len(xy_disperse[0]), len(xy_disperse[0])))
+    
+    # add lsf to every point of the spectrum, for every star
+    for idx, xy in enumerate(xy_pos):
+        z_lsf = np.zeros(len(xy_disperse[0]))
+        
+        print("Adding SF for star spectrum no: %d"%(idx+1))
+        # for every wavelength/point in the spectrum 
+        for i in range(len(xy_disperse[0])):
+            start = xy_disperse[idx][i]-disperse_range/factor_widen
+            stop = xy_disperse[idx][i]+disperse_range/factor_widen
+            xy_temp = np.linspace(start, stop, len(xy_disperse[0]))
+        
+            # producing a normal distribution at a different mean but with a same sigma_x 
+            # TODO: make sigma_x wavelength dependent
+            z_temp = stats.norm(xy_disperse[idx][i], sigma_xy)
+            z_lsf = z_temp.pdf(xy_temp)
+            
+            # shows a progress bar during computations
+            showProgress(i, len(xy_disperse[0]))
+            
+            # information about the background flux contribution due to point for 1 star is stored
+            flux_PSF2D = np.append(flux_PSF2D, [z_lsf], axis=0)
+        
+        flux_PSF3D = np.append(flux_PSF3D, [flux_PSF2D], axis=0)
+    return flux_PSF3D
