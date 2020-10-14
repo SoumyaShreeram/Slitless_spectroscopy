@@ -18,6 +18,7 @@ import astropy.io.fits as fits
 
 from scipy.sparse import csr_matrix
 import scipy.stats as stats
+from scipy.interpolate import interp1d
 import numpy as np
 import os
 import importlib
@@ -116,4 +117,27 @@ def selectMaxStars(mag_Ks, ra_Ks, de_Ks, max_stars):
     print("Selecting a max of %d stars in the FOV randomly."%max_stars)
     return mag_Ks[idx], ra_Ks[idx], de_Ks[idx]
 
+def mapToFOVinPixels(de_Ks, ra_Ks, u_pix):
+    """
+    Function to map the r.a. and declination positions into pixels 
+    @de_Ks, ra_Ks, u_pix :: declination , right ascension, and size of the FOV in pixels
+    """
+    funcX = interp1d([np.min(np.abs(de_Ks)), np.max(np.abs(de_Ks))], [0, u_pix])
+    funcY = interp1d([np.min(ra_Ks), np.max(ra_Ks)],[0, u_pix]) 
+    return funcX(np.abs(de_Ks)), funcY(ra_Ks)
 
+def associateSpectraToStars(waves_k, stars_divide, max_stars, flux_LSF2D, params):
+    """
+    Function to
+    @de_Ks, ra_Ks, u_pix :: declination , right ascension, and size of the FOV in pixels
+    """
+    flux_k2D = np.zeros((0, len(waves_k)))
+    
+    for idx, num_stars in enumerate(stars_divide):
+        if num_stars*max_stars != 0:
+            for i in range(int(num_stars*max_stars)):
+                flux_k2D = np.append(flux_k2D, [flux_LSF2D[idx]], axis=0)
+            print('%d stars at Teff = %s K, log g = %s'%(num_stars*max_stars, params[idx][0], params[idx][1]))
+        else:
+            print('%d stars at Teff = %s K, log g = %s'%(num_stars*max_stars, params[idx][0], params[idx][1]))        
+    return flux_k2D
