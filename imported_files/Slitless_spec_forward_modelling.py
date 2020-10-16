@@ -122,8 +122,8 @@ def mapToFOVinPixels(de_Ks, ra_Ks, u_pix):
     Function to map the r.a. and declination positions into pixels 
     @de_Ks, ra_Ks, u_pix :: declination , right ascension, and size of the FOV in pixels
     """
-    funcX = interp1d([np.min(np.abs(de_Ks)), np.max(np.abs(de_Ks))], [0, u_pix])
-    funcY = interp1d([np.min(ra_Ks), np.max(ra_Ks)],[0, u_pix]) 
+    funcX = interp1d([np.min(np.abs(de_Ks)), np.max(np.abs(de_Ks))], [0, u_pix-1])
+    funcY = interp1d([np.min(ra_Ks), np.max(ra_Ks)],[0, u_pix-1]) 
     return funcX(np.abs(de_Ks)), funcY(ra_Ks)
 
 def associateSpectraToStars(waves_k, stars_divide, max_stars, flux_LSF2D, params):

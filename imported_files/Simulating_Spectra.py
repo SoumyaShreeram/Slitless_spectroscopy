@@ -143,15 +143,15 @@ def readFile(data_dir, wave_filename, params):
 """### 3. Forming a spectral image
 """
 
-def resamplingSpectra(arr, disperse_range, statistic_type):
+def resamplingSpectra(arr_x, values, disperse_range, statistic_type):
     """
     Function for resampling the synthetic spectra in the K band as per resolution
     @disperse_range :: range of wavelength in pixels chosen for dispersion
-    @arr :: array that is rebinned
+    @arr_x :: array that is binned
+    @values :: values on which the statistic will be computed (same shape as arr_x).
     """
     bins = np.linspace(0, 1, disperse_range)
-    bin_means = stats.binned_statistic(arr, arr, statistic=statistic_type, bins=disperse_range)
-    bin_means = bin_means[0]
+    bin_means,_,_ = stats.binned_statistic(arr_x, values, statistic=statistic_type, bins=disperse_range)
     return bin_means
 
 def chooseKband(wave_len_arr2D, k_upper, k_lower, disperse_range):
@@ -161,7 +161,9 @@ def chooseKband(wave_len_arr2D, k_upper, k_lower, disperse_range):
     @wave_len_arr2D :: wavelength array covering the whole range of the observed spectrum
     @disperse_range :: range of wavelength in pixels chosen for dispersion
     
-    Returns :: @waves_k :: chosen wavelength array
+    Returns :: @waves_k :: chosen wavelength array in the k-band
+    @waves_k_binned :: chosen wavelength array in the k-band binned to the size of disperse_range
+    @idx :: index arr of chosen wavelengths that is useful to extract corresponding flux
     """
     waves_k, idx = [], []
     wave_len = wave_len_arr2D[0]
@@ -172,10 +174,10 @@ def chooseKband(wave_len_arr2D, k_upper, k_lower, disperse_range):
             idx.append(i)
     
     # rebinning the data based on the dispersion range inputted
-    waves_k = resamplingSpectra(waves_k, disperse_range, 'mean')
-    return waves_k, idx
+    waves_k_binned = resamplingSpectra(waves_k, waves_k, disperse_range, 'mean')
+    return waves_k, idx, waves_k_binned
 
-def fluxKband(flux_arr2D, pos, flux_k2D, idx, disperse_range, statistic_type):
+def fluxKband(waves_k, flux_arr2D, pos, flux_k2D, idx, disperse_range, statistic_type):
     """
     Function for choosing the flux in the K band
     @flux_arr2D :: flux for all wavelengths
@@ -188,7 +190,7 @@ def fluxKband(flux_arr2D, pos, flux_k2D, idx, disperse_range, statistic_type):
         flux_k = flux_arr2D[i][idx]
         
         # resample/rebin the values based of input resolution (disperse_range)
-        flux_k = resamplingSpectra(flux_k, disperse_range, statistic_type)
+        flux_k = resamplingSpectra(waves_k, flux_k, disperse_range, statistic_type)
         
         # append these values to the 2D arr
         flux_k2D = np.append(flux_k2D, [flux_k], axis=0)
@@ -219,23 +221,23 @@ def disperseStars(x_pos, y_pos, disperse_range, waves_k,  ax, dispersion_angle):
         # save the values
         x_disperse = np.append(x_disperse, [x_d], axis=0)
         y_disperse = np.append(y_disperse, [y_d], axis=0)
-    return x_disperse, y_disperse
+    return x_disperse, y_disperse 
 
 def checkIfInsideFOV(col, row, u_pix):
     """ 
     Function makes sure to NOT consider contributions outside the FOV
     """
     # if there are no issues, leave this as it is
-    edge_cutter = len(col)
+    edge_cutter = len(col)      
     
     # checks if the spectra along the column are exceeding FOV
-    if np.any(col>u_pix):
+    if np.any(col>u_pix-1):
         col = col[col<u_pix]
         row = row[0:len(col)]
         edge_cutter = len(col)
     
     # checks if the spectra along the row are exceeding FOV
-    if np.any(row>u_pix):
+    if np.any(row>u_pix-1):
         row = row[row<u_pix]
         col = col[0:len(row)]
         edge_cutter = len(row)

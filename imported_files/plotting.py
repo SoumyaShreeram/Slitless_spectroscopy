@@ -89,7 +89,7 @@ def plotContour(l_pix, u_pix, flux_matrix2D):
     fig, ax = plt.subplots(1,1,figsize=(9,8))
 
     X, Y = np.meshgrid(np.linspace(0, u_pix, u_pix), np.linspace(0, u_pix, u_pix))
-    plot = ax.contourf(X, Y, flux_matrix2D, cmap='YlOrRd')
+    plot = ax.contourf(X, Y, flux_matrix2D, cmap='YlGnBu')
 
     # labeling and setting colorbar
     setLabel(ax, 'x-axis position', 'y-axis position', '', [l_pix, u_pix], [l_pix, u_pix], legend=False)
