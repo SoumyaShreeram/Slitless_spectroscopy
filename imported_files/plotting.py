@@ -37,6 +37,9 @@ import matplotlib
 from specutils.manipulation import (box_smooth, gaussian_smooth, trapezoid_smooth)
 from specutils import Spectrum1D
 
+# personal file imports
+import Simulating_Spectra as ss
+
 """### 1. Functions for labeling plots
 """
 
@@ -76,6 +79,27 @@ def shortenXYaxisTicks(ax):
 
 """### 2. Functions for plotting other things
 """
+
+def plotDispersedStars(x_pos, y_pos, l_pix, u_pix, disperse_range, waves_k, dispersion_angle):
+    """
+    Function plots a contour map for the dispersion caused by slitless spectroscopy
+    @noise_level :: decides the amplitude of noise to add to the flux (in %)
+    @u_pix :: number of pixels in the FOV
+    @disperse_range :: the length dispersion range for each star
+
+    @Returns :: noise_matrix2D :: 2D noise matrix
+    """
+    fig, ax = plt.subplots(1,1,figsize=(9,8))
+    
+
+    # dispersing them in the k-band
+    x_disperse, y_disperse = ss.disperseStars(x_pos, y_pos, disperse_range, waves_k, ax, \
+                                              dispersion_angle)
+    # plotting the stars
+    ax.plot(x_pos, y_pos, ".", color= '#ebdf09', alpha=0.9, marker="*", markersize=10)
+    setLabel(ax, 'x-axis position', 'y-axis position', '', [l_pix, u_pix], \
+                [l_pix, u_pix], legend=False)
+    return x_disperse, y_disperse
 
 def plotContour(l_pix, u_pix, flux_matrix2D):
     """

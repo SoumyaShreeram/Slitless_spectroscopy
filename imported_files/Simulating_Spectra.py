@@ -79,6 +79,20 @@ def defineSpectralType(HiRes=True, MedRes=False):
         spectral_type = spectral_types_arr[1]
     return spectral_type
 
+def starPositions(l_pix, u_pix, num_stars, generate_new_pos, filename):
+    """
+    Function defines the postions of stars in FOV
+    @l_pix, u_pix :: bounds for the FOV 
+    @generate_new_pos :: boolean decides wether to create new star positions or use old ones
+    @filename :: if one decides to use old positions, provide the function with the filename where the positions anre stored
+    """
+    if generate_new_pos:
+        x_pos = ss.generateRandInt(l_pix, u_pix, num_stars) 
+        y_pos = ss.generateRandInt(l_pix, u_pix, num_stars)
+    else:
+        pos_arr = np.load(filename)
+        x_pos, y_pos = pos_arr[0], pos_arr[1]
+    return x_pos, y_pos
 
 
 """### 2. Opening and reading the file
@@ -132,7 +146,7 @@ def readFile(data_dir, wave_filename, params):
 
     # define the spectral file name 
     spectral_file_name = defineSpectralFilename(params)
-    filename = os.path.join(data_dir, spectral_file_name)
+    filename = os.path.join(data_dir, 'spectra', spectral_file_name)
 
     # open the file and extract flux
     hdu_list = openFile(filename)
@@ -216,7 +230,7 @@ def disperseStars(x_pos, y_pos, disperse_range, waves_k,  ax, dispersion_angle):
         intercept = y_pos[i]-np.tan(angle)*x_d
         y_d = np.tan(angle)*x_d + intercept 
 
-        ax.plot(x_d, y_d, 'r.')
+        ax.plot(x_d, y_d, '.', color='#d8b6fa')
 
         # save the values
         x_disperse = np.append(x_disperse, [x_d], axis=0)

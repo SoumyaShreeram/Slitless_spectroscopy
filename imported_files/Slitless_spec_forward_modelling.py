@@ -39,6 +39,10 @@ import matplotlib
 from specutils.manipulation import (box_smooth, gaussian_smooth, trapezoid_smooth)
 from specutils import Spectrum1D
 
+
+# for doing combinatorics with spectra
+from itertools import permutations
+
 # personal imports
 import Simulating_Spectra as ss
 
@@ -100,12 +104,14 @@ def selectRealStars(mag_Ks, ra_Ks, de_Ks):
 
 def cutOffFlux(mag_Ks, ra_Ks, de_Ks, cut_off_ll):
     """
-    Function cuts off stars below a certain flux from the bottom@de_Ks, ra_Ks, mag_Ks :: declination , right ascension, and magnitude of stars arr
+    Function cuts off stars below a certain flux from the bottom
+    @de_Ks, ra_Ks, mag_Ks :: declination , right ascension, and magnitude of stars arr
+    @cut_off_ll :: cut-off limit on the magnitude (note: mag scale is -ve)
     """
     
-    idx = np.where(mag_Ks>cut_off_ll)
+    idx = np.where(mag_Ks<cut_off_ll)
     print("Discarding stars with magnitude < %d."%cut_off_ll)
-    return mag_Ks[mag_Ks>cut_off_ll], ra_Ks[idx], de_Ks[idx]
+    return mag_Ks[mag_Ks<cut_off_ll], ra_Ks[idx], de_Ks[idx]
 
 def selectMaxStars(mag_Ks, ra_Ks, de_Ks, max_stars):
     """
@@ -128,16 +134,78 @@ def mapToFOVinPixels(de_Ks, ra_Ks, u_pix):
 
 def associateSpectraToStars(waves_k, stars_divide, max_stars, flux_LSF2D, params):
     """
-    Function to
-    @de_Ks, ra_Ks, u_pix :: declination , right ascension, and size of the FOV in pixels
+    Function to associate the spectra of a certain type to the star
+    @waves_k :: 
+    @stars_divide :: arr that categorieses the #stars
+    @max_stars :: max_number of stars in the FOV
+    @flux_LSD2D :: flux array containins spectra for different spectral_types
+    @params :: arr containing [t_eff, log_g, Fe_H, alpha, spectral_types]
+    
+    Returns 
+    @flux_k2D :: 
+    @type_id :: arr keeps track of the different types of stars with labels running from 0 to len(star_divide)
     """
+    label_arr = np.arange(len(stars_divide))
     flux_k2D = np.zeros((0, len(waves_k)))
+    type_id = []
     
     for idx, num_stars in enumerate(stars_divide):
         if num_stars*max_stars != 0:
             for i in range(int(num_stars*max_stars)):
+                # keep track of the type of the star
+                type_id.append(label_arr[idx])
+                
+                # add the spectra for the star into the array
                 flux_k2D = np.append(flux_k2D, [flux_LSF2D[idx]], axis=0)
             print('%d stars at Teff = %s K, log g = %s'%(num_stars*max_stars, params[idx][0], params[idx][1]))
-        else:
+            
+        # if there are no stars with the chosen spectrum
+        else:            
             print('%d stars at Teff = %s K, log g = %s'%(num_stars*max_stars, params[idx][0], params[idx][1]))        
-    return flux_k2D
+    return flux_k2D, type_id
+
+def generateAllCombinations(type_id):
+    "Function generates all possible distinguishable combinations of input array"
+    perms = set(permutations(type_id))
+    return list(perms)
+
+def constructSpectralTemplates(u_pix, y_disperse, x_disperse, type_id, flux_k2D):
+    """
+    Function to construct all possible spectral combinations
+    """
+    flux_matrix2D = np.zeros((u_pix, u_pix))
+    
+    # array generates all possible realizations of stars with spectra
+    perms = generateAllCombinations(type_id)
+    
+    for i in range(len(perms)):
+        # reorder the flux arr for the given permutation
+        flux_k2D = flux_k2D[np.array(perms[i])]
+        
+        # construct the 2D matrix
+        flux_matrix2D = ss.construct2DFluxMatrix(flux_matrix2D, y_disperse, x_disperse, \
+                                         flux_k2D, u_pix)
+        
+        # save the file
+        np.save('Data/Template_library_10_stars/fluxMatrix_s%d_p%d.npy'%(len(x_disperse), i), flux_matrix2D)
+        np.save('Data/Template_library_10_stars/perm_arr.npy', perms)    
+    return perms
+
+def calDiffDataTemplate(u_pix, num_stars, perms_arr, data_flux_matrix2D):
+    """
+    
+    
+    """
+    diff_arr = []
+    diff_mat3D = np.zeros((0, u_pix, u_pix)) 
+    
+    for i in range(len(perms_arr)):
+        diff_mat = np.zeros((u_pix, u_pix))
+        template_flux_matrix2D = np.load('Data/Template_library_10_stars/fluxMatrix_s%d_p%d.npy'%(num_stars, i))
+        
+        diff_mat = data_flux_matrix2D - template_flux_matrix2D
+        diff_arr.append(np.ndarray.sum(diff_mat))
+        diff_mat3D = np.append(diff_mat3D, [diff_mat], axis=0)
+        
+        min_idx = diff_arr.index(np.min(diff_arr))       
+    return diff_arr, min_idx, diff_mat3D
