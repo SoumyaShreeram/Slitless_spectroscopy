@@ -171,7 +171,7 @@ def generateAllCombinations(type_id):
 
 def constructSpectralTemplates(u_pix, y_disperse, x_disperse, type_id, flux_k2D):
     """
-    Function to construct all possible spectral combinations
+    Function to construct templates that consider all possible spectral combinations of stars
     """
     flux_matrix2D = np.zeros((u_pix, u_pix))
     
@@ -191,10 +191,43 @@ def constructSpectralTemplates(u_pix, y_disperse, x_disperse, type_id, flux_k2D)
         np.save('Data/Template_library_10_stars/perm_arr.npy', perms)    
     return perms
 
+def splitFOVtoGrid(flux_matrix2D, num_splits):
+    """
+    Function to split the FOV into a grid of x by x pixels to calculate chi-squared
+    @flux_matrix2D :: 2D matrix holding the normalized values of fluxes in the FOV
+    @num_splits :: reduced dimension of the flux matrix
+
+    Returns::
+    @min_statistic :: the statistic used to define the optimal model (minimizing)
+    """
+    store_vals_arr = []
+    store_vals_2Darr = np.zeros((0, num_splits))
+
+    # split the flux matrix into rows
+    split_rows =  np.vsplit(flux_matrix2D, num_splits)
+
+    for i in range(num_splits):
+        # split the 'splited flux matrix' further, but this time by columns
+        split_cols = np.hsplit(split_rows[i], num_splits)
+        
+        # store the sum of these vals 
+        store_vals_arr.append([np.sum(split_cols[j]) for j in range(num_splits)]) 
+        store_vals_2Darr = np.append(store_vals_2Darr, [store_vals_arr], axis=0)
+
+    # calculate statistic
+
+    return min_statistic
+
 def calDiffDataTemplate(u_pix, num_stars, perms_arr, data_flux_matrix2D):
     """
-    
-    
+    Function to calculate the difference between the 'data image' and 'template image'
+    @u_pix :: dimensions of the FOV
+    @num_stars :: number of stars in the FOV
+    @perms_arr :: arr with info about all possible permutations of the input array
+    @data_flux_matrix2D :: slitless image that is considered as the 'data-input'
+
+    Returns ::
+    @diff_arr, min_idx, diff_mat3D ::     
     """
     diff_arr = []
     diff_mat3D = np.zeros((0, u_pix, u_pix)) 
@@ -203,9 +236,14 @@ def calDiffDataTemplate(u_pix, num_stars, perms_arr, data_flux_matrix2D):
         diff_mat = np.zeros((u_pix, u_pix))
         template_flux_matrix2D = np.load('Data/Template_library_10_stars/fluxMatrix_s%d_p%d.npy'%(num_stars, i))
         
+        # take the difference betweek 'data image - template image'
         diff_mat = data_flux_matrix2D - template_flux_matrix2D
-        diff_arr.append(np.ndarray.sum(diff_mat))
+
+        # reduce the dimensions of this residual matrix to cal. the minimizing statistic
+        diff_mat = splitFOVtoGrid(diff_mat, num_splits)
+        diff_arr.append(np.sum(diff_mat)**2)
         diff_mat3D = np.append(diff_mat3D, [diff_mat], axis=0)
         
+        # find the template that minimized this difference
         min_idx = diff_arr.index(np.min(diff_arr))       
     return diff_arr, min_idx, diff_mat3D
