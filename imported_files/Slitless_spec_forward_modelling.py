@@ -56,6 +56,7 @@ def readCatalogFile(filename):
     hdu_list = fits.open(filename)
     # Ks band magnitude
     mag_Ks = hdu_list[1].data['Ksmag']
+    mag_H = hdu_list[1].data['Hmag']
 
     # position of stars in the sky
     ra_Ks = hdu_list[1].data['RAKsdeg']
@@ -70,7 +71,7 @@ def readCatalogFile(filename):
     hdu_list.close()
     
     errors = [e_mag_Ks, e_ra_Ks, e_de_Ks]
-    return mag_Ks, ra_Ks, de_Ks, errors
+    return mag_Ks, ra_Ks, de_Ks, errors, mag_H
 
 
 """### 2. Functions for selection of stars
@@ -110,7 +111,7 @@ def cutOffFlux(mag_Ks, ra_Ks, de_Ks, cut_off_ll):
     """
     
     idx = np.where(mag_Ks<cut_off_ll)
-    print("Discarding stars with magnitude < %d."%cut_off_ll)
+    print("Discarding stars with magnitude > %d."%cut_off_ll)
     return mag_Ks[mag_Ks<cut_off_ll], ra_Ks[idx], de_Ks[idx]
 
 def selectMaxStars(mag_Ks, ra_Ks, de_Ks, max_stars):
@@ -119,9 +120,9 @@ def selectMaxStars(mag_Ks, ra_Ks, de_Ks, max_stars):
     @de_Ks, ra_Ks, mag_Ks :: declination , right ascension, and magnitude of stars arr
     """
     
-    idx = ss.generateRandInt(0, len(mag_Ks), max_stars)
+    idx = ss.generateRandInt(0, len(mag_Ks)-1, max_stars)
     print("Selecting a max of %d stars in the FOV randomly."%max_stars)
-    return mag_Ks[idx], ra_Ks[idx], de_Ks[idx]
+    return mag_Ks[idx], ra_Ks[idx], de_Ks[idx], idx
 
 def mapToFOVinPixels(de_Ks, ra_Ks, u_pix):
     """
@@ -196,7 +197,6 @@ def splitFOVtoGrid(flux_matrix2D, num_splits):
     Function to split the FOV into a grid of x by x pixels to calculate chi-squared
     @flux_matrix2D :: 2D matrix holding the normalized values of fluxes in the FOV
     @num_splits :: reduced dimension of the flux matrix
-
     Returns::
     @min_statistic :: the statistic used to define the optimal model (minimizing)
     """
@@ -215,8 +215,8 @@ def splitFOVtoGrid(flux_matrix2D, num_splits):
         store_vals_2Darr = np.append(store_vals_2Darr, [store_vals_arr], axis=0)
 
     # calculate statistic
-
-    return min_statistic
+    #min_statistic
+    return 
 
 def calDiffDataTemplate(u_pix, num_stars, perms_arr, data_flux_matrix2D):
     """
@@ -225,7 +225,6 @@ def calDiffDataTemplate(u_pix, num_stars, perms_arr, data_flux_matrix2D):
     @num_stars :: number of stars in the FOV
     @perms_arr :: arr with info about all possible permutations of the input array
     @data_flux_matrix2D :: slitless image that is considered as the 'data-input'
-
     Returns ::
     @diff_arr, min_idx, diff_mat3D ::     
     """

@@ -153,3 +153,14 @@ def plotDifferentGaussianLSFs(ax, flux_k2D, waves_k, sigma_LSF_arr, colors, xlim
 
     ax.set_yscale('log')
     return 
+
+def plotMagDiffs(mag_H, cut_off_ll):
+    mag_H = mag_H[mag_H<cut_off_ll]    
+
+    fig, ax = plt.subplots(1,1,figsize=(9,8))
+    
+    ax.plot(mag_H[idx]-mag_Ks, mag_Ks, 'g.')
+    #plot vertical line signifying the cut-off
+    ax.axvline(forground_cutoff, np.min(mag_Ks), np.max(mag_Ks), color='k')
+    setLabel(ax, r'$K_s$-H (mag)', r'$K_s$ (mag)', '', xlim, ylim, legend=False)
+    return
