@@ -164,3 +164,12 @@ def plotMagDiffs(mag_H, cut_off_ll):
     ax.axvline(forground_cutoff, np.min(mag_Ks), np.max(mag_Ks), color='k')
     setLabel(ax, r'$K_s$-H (mag)', r'$K_s$ (mag)', '', xlim, ylim, legend=False)
     return
+
+def plotLSFaddedSpectra(ax, num_spectra, waves_k, flux_LSF2D, pal, params_arr2D, title):
+    for i in range(num_spectra):
+        ax.plot(waves_k, flux_LSF2D[i], color=pal[i], label=labelSpectra(params_arr2D[i]))
+    
+    setLabel(ax, r'$\lambda [\mu m]$', r'Flux [erg/s/$cm^2$]', \
+            title+ r'K-band spectra with LSF', 'default',\
+            'default', legend=True)       
+    return

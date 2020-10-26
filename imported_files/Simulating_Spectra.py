@@ -87,8 +87,8 @@ def starPositions(l_pix, u_pix, num_stars, generate_new_pos, filename):
     @filename :: if one decides to use old positions, provide the function with the filename where the positions anre stored
     """
     if generate_new_pos:
-        x_pos = ss.generateRandInt(l_pix, u_pix, num_stars) 
-        y_pos = ss.generateRandInt(l_pix, u_pix, num_stars)
+        x_pos = generateRandInt(l_pix, u_pix, num_stars) 
+        y_pos = generateRandInt(l_pix, u_pix, num_stars)
     else:
         pos_arr = np.load(filename)
         x_pos, y_pos = pos_arr[0], pos_arr[1]
@@ -421,3 +421,6 @@ def constructFluxMatrixPSF(x_pos, x_disperse, y_dispersePSF, flux_k2D, u_pix):
         # shows a progress bar during computations        
         showProgress(i, len(x_pos))        
     return flux_matrix2D
+
+def printForgroundPopulation(mag, max_stars):
+    return print(r'Forground population of stars in sample (H-K_s > 1.1): %.2f percent'%((len(np.where(mag>1.1)[0])*100)/max_stars))
