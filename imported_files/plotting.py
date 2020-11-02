@@ -155,6 +155,11 @@ def plotDifferentGaussianLSFs(ax, flux_k2D, waves_k, sigma_LSF_arr, colors, xlim
     return 
 
 def plotMagDiffs(mag_H, cut_off_ll):
+    """
+    Function to plot the H-Ks magnitudes for estimating foreground population
+    @mag_H :: H-band mag of stars
+    @cut_off_ll :: lower limit on which we are cutting off stars
+    """
     mag_H = mag_H[mag_H<cut_off_ll]    
 
     fig, ax = plt.subplots(1,1,figsize=(9,8))
@@ -166,10 +171,34 @@ def plotMagDiffs(mag_H, cut_off_ll):
     return
 
 def plotLSFaddedSpectra(ax, num_spectra, waves_k, flux_LSF2D, pal, params_arr2D, title):
+    """
+    Function plots the spectra after the application of an LSF
+    @ax :: holds the axis
+    @num_spectra :: number of spectra (and corresponding stars) there are in the FOV
+    @waves_k :: wavelength array chosen for the k-band
+    @flux_LSF2D :: flux array that contains all the spectra for #stars with LSF applied
+    @pal :: shortform for palette, and contains the range of colors considered for plotting
+    @params_arr2D :: arr containing [t_eff, log_g, Fe_H, alpha, spectral_types] for each star
+    @title :: title to the plot
+    """
     for i in range(num_spectra):
         ax.plot(waves_k, flux_LSF2D[i], color=pal[i], label=labelSpectra(params_arr2D[i]))
     
     setLabel(ax, r'$\lambda [\mu m]$', r'Flux [erg/s/$cm^2$]', \
-            title+ r'K-band spectra with LSF', 'default',\
+            title+ r' K-band spectra with LSF', 'default',\
             'default', legend=True)       
+    return
+
+def plotChiSquare(perms_arr, chi_squared_arr):
+    """
+    Function plots the chi-squared vs permutation number plot
+    @chi_squared_arr :: [chi_squared, min_idx, template_flux_matrix2D] ` contains three quantities
+    @perms_arr :: arr containing all the possible permuations for a given configuration
+    """
+    fig, ax = plt.subplots(1,1,figsize=(9,8))
+    
+    ax.plot(np.arange(len(perms_arr)), chi_squared_arr[0], 'k--')
+    setLabel(ax, 'Permutation number', r'$\chi^2$', '', 'default', \
+                    'default', legend=False)
+    print('The best fitting permutation has the following spectral types:\n ', perms_arr[chi_squared_arr[1][0][0]]) 
     return

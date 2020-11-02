@@ -49,7 +49,10 @@ import matplotlib
 from specutils.manipulation import (box_smooth, gaussian_smooth, trapezoid_smooth)
 from specutils import Spectrum1D
 
-"""### 1. Functions for defining input parameters
+"""
+
+### 1. Functions for defining input parameters
+
 """
 
 def generateRandInt(lower_limit, upper_limit, num_points):
@@ -95,7 +98,10 @@ def starPositions(l_pix, u_pix, num_stars, generate_new_pos, filename):
     return x_pos, y_pos
 
 
-"""### 2. Opening and reading the file
+"""
+
+### 2. Opening and reading the file
+
 """
 
 def defineSpectralFilename(params):
@@ -154,7 +160,10 @@ def readFile(data_dir, wave_filename, params):
     return wave_len, flux
 
 
-"""### 3. Forming a spectral image
+"""
+
+### 3. Forming a spectral image
+
 """
 
 def resamplingSpectra(arr_x, values, disperse_range, statistic_type):
@@ -280,22 +289,26 @@ def construct2DFluxMatrix(flux_matrix2D, y_disperse, x_disperse, flux_k2D, u_pix
         flux_matrix2D = flux_matrix2D+temp
     return flux_matrix2D
 
-"""4.1 Add noise
+"""
+
+4.1 Add noise
 
 """
-def addNoise(noise_level, u_pix):
-    """Function adds noise to the 2D array 
-    @noise_level ::decis the amplitude
+def addNoise(flux_2Dmat, u_pix):
+    """Function adds random noise to the 2D array 
+    @noise_level :: lambda parameter of the Poisson distribution
     @u_pix :: number of pixels in FOV
     @disperse_range :: the length of dispersion fr each star
 
     @Returns :: noise_matrix2D 2Darray of flux with noise
     """
     shape=(u_pix, u_pix)
-    noise_matrix2D = np.random.normal(0, (noise_level*1)/100, size=shape)
+    noise_matrix2D = np.random.poisson(lam=flux_2Dmat, size=shape)
     return noise_matrix2D
 
-"""4.2 Add LSF, PSF
+"""
+
+4.2 Add LSF, PSF
 
 """
 
@@ -338,6 +351,7 @@ def addLSF(xy_pos, flux_k2D, sigma_LSF, waves_k):
         # shows a progress bar during computations
         showProgress(idx, len(xy_pos))                       
     return flux_SF2D
+
 def checkNegativeVals(val):
     "Function to check that the value is not negative (<0)"
     if val < 0:
@@ -414,13 +428,13 @@ def constructFluxMatrixPSF(x_pos, x_disperse, y_dispersePSF, flux_k2D, u_pix):
 
             # csr_matrix from scipy puts together a 2D matrix with the desired info
             flux_matrix2D += csr_matrix((flux_k2D[i][idx][0:edge_cutter], (row, col)), shape=(u_pix, u_pix)).toarray()
-
-            # add all the contributions from all the stars
-            #flux_matrix2D = flux_matrix2D + temp
             
         # shows a progress bar during computations        
         showProgress(i, len(x_pos))        
     return flux_matrix2D
 
 def printForgroundPopulation(mag, max_stars):
+    """
+    Function prints the number of stars that belong to the foreground population
+    """
     return print(r'Forground population of stars in sample (H-K_s > 1.1): %.2f percent'%((len(np.where(mag>1.1)[0])*100)/max_stars))

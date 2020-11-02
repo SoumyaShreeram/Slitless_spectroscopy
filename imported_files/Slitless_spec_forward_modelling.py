@@ -46,7 +46,10 @@ from itertools import permutations
 # personal imports
 import Simulating_Spectra as ss
 
-"""### 1. Functions for reading in the catalog
+"""
+
+### 1. Functions for reading in the catalog
+
 """
 
 def readCatalogFile(filename):
@@ -73,8 +76,20 @@ def readCatalogFile(filename):
     errors = [e_mag_Ks, e_ra_Ks, e_de_Ks]
     return mag_Ks, ra_Ks, de_Ks, errors, mag_H
 
+def decideNumHotStars(hot_stars):
+    """
+    Function to produce an array holding information about the stellar distribution
+    @hot_stars :: number between 0.1-0.9 to define the percent of hot stars in the population
+    """
+    #TODO: try, catch to correct numbers not between 0.1 and 0.9
+    # t_eff_arr = [12000, 11800, 10000, 8400, 7600, 6900, 5900, 5100, 4700, 3900]    
+    stars_divide = [hot_stars, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1-hot_stars, 0.0, 0.0]
+    return stars_divide
 
-"""### 2. Functions for selection of stars
+"""
+
+### 2. Functions for selection of stars
+
 """
 
 def selectFOV(de_ll, de_ul, de_Ks):
@@ -136,7 +151,7 @@ def mapToFOVinPixels(de_Ks, ra_Ks, u_pix):
 def associateSpectraToStars(waves_k, stars_divide, max_stars, flux_LSF2D, params):
     """
     Function to associate the spectra of a certain type to the star
-    @waves_k :: 
+    @waves_k :: wavelength arr in the k-band
     @stars_divide :: arr that categorieses the #stars
     @max_stars :: max_number of stars in the FOV
     @flux_LSD2D :: flux array containins spectra for different spectral_types
@@ -165,12 +180,18 @@ def associateSpectraToStars(waves_k, stars_divide, max_stars, flux_LSF2D, params
             print('%d stars at Teff = %s K, log g = %s'%(num_stars*max_stars, params[idx][0], params[idx][1]))        
     return flux_k2D, type_id
 
+"""
+
+### 3. Functions for generating a template library and choosing the best template
+
+"""
+
 def generateAllCombinations(type_id):
     "Function generates all possible distinguishable combinations of input array"
     perms = set(permutations(type_id))
     return list(perms)
 
-def constructDataImage(perms, noise_level, u_pix, flux_k2D, y_disperse, x_disperse):
+def constructDataImage(perms, u_pix, flux_k2D, y_disperse, x_disperse):
     """
     Function to construct an arbitary 'data image' that considers a possible spectral combinations of stars
     """
@@ -188,13 +209,33 @@ def constructDataImage(perms, noise_level, u_pix, flux_k2D, y_disperse, x_disper
                                      flux_k2D_temp, u_pix) 
 
     # add psf and noise
-    flux_matrix2D = flux_matrix2D + flux_PSF_2Dmatrix + ss.addNoise(noise_level, u_pix)  
-    print('\nChoosing permutation no. ', idx[0])
+    flux_matrix2D = ss.addNoise(flux_matrix2D + flux_PSF_2Dmatrix, u_pix)  
+    print('\nChoosing permutation no. %d out of total %d permutations'%(idx[0], len(perms)))
     return flux_matrix2D, idx[0]
 
-def constructSpectralTemplates(u_pix, y_disperse, x_disperse, type_id, flux_k2D, noise_level):
+def countHotStars(perms_arr):
+    """
+    Function to count the number of hot stars in the given template configuration
+    @perms_arr :: 2D arr holding information about the possible permutations for a given configuration
+    Returns ::
+    @count_stars :: counts the number of hot stars (limit of this defintion can be changed) in the FOV
+    """
+    count_stars = 0
+    for perm in perms_arr[0]:
+        if perm == 0:
+            count_stars += 1
+    return count_stars
+
+def constructSpectralTemplates(u_pix, y_disperse, x_disperse, type_id, flux_k2D):
     """
     Function to construct templates that consider all possible spectral combinations of stars
+    @u_pix :: max pixels in FOV
+    @xy_disperse :: row indicies on the grid i.e. the spectrum following the star
+    @type_id :: array storing information about the type of star i.e T_eff = 12,000 K is given a type id of 0, so all stars of the same type are given a similar id number
+    @flux_k2D :: k band flux for each star type considered
+    
+    Returns ::
+    @perms :: 2darray with all possible permutations of stars for the given population distribution 
     """
     # array generates all possible realizations of stars with spectra
     perms = generateAllCombinations(type_id)
@@ -211,10 +252,11 @@ def constructSpectralTemplates(u_pix, y_disperse, x_disperse, type_id, flux_k2D,
                                          flux_k2D_temp, u_pix) 
         
         # add psf and noise
-        flux_matrix2D = flux_matrix2D + flux_PSF_2Dmatrix + ss.addNoise(noise_level, u_pix)
+        flux_matrix2D = ss.addNoise(flux_matrix2D + flux_PSF_2Dmatrix, u_pix)
         # save the file
-        np.save('Data/Template_library_10_stars/fluxMat_%dstar_%dpermNo.npy'%(len(x_disperse), i), flux_matrix2D)
-        np.save('Data/Template_library_10_stars/perm_arr.npy', perms)    
+        num_hot_stars = countHotStars(perms)
+        np.save('Data/Template_library_10_stars/hot_stars%d/fluxMat_%dstar_%dpermNo.npy'%(num_hot_stars, len(x_disperse), i), flux_matrix2D)
+        np.save('Data/Template_library_10_stars/hot_stars%d/perm_arr.npy'%num_hot_stars, perms)    
     return perms
 
 def splitFOVtoGrid(flux_matrix2D, num_splits):
@@ -238,6 +280,18 @@ def splitFOVtoGrid(flux_matrix2D, num_splits):
         store_vals_arr.append([np.sum(split_cols[j]) for j in range(num_splits)])        
     return store_vals_arr
 
+def loadTemplates(perms_arr, num_stars, idx):
+    """
+    Function to load template files
+    @perms_arr :: arr with info about all possible permutations of the input array
+    @num_stars :: the number of stars for which we consider all the possible permutations
+    @idx :: idx number, and iterator that runs over all the permutations
+    
+    Returns :: filename of the template
+    """
+    num_hot_stars = countHotStars(perms_arr)
+    return np.load('Data/Template_library_10_stars/hot_stars%d/fluxMat_%dstar_%dpermNo.npy'%(num_hot_stars, num_stars, idx))
+     
 
 def determineBestFit(u_pix, num_stars, perms_arr, data_vals_2Darr, num_splits):
     """
@@ -247,13 +301,15 @@ def determineBestFit(u_pix, num_stars, perms_arr, data_vals_2Darr, num_splits):
     @perms_arr :: arr with info about all possible permutations of the input array
     @data_flux_matrix2D :: slitless image that is considered as the 'data-input'
     Returns ::
-    @diff_arr, min_idx, diff_mat3D ::     
+    @chi_squared :: ndarray that stores the chi-squared for every permutation  
+    @min_idx :: the permutation no. for which the chi-squared in minimum
+    @template_flux_matrix2D :: the template that minimizes the chi-squared
     """
     chi_squared = []
     
     for i in range(len(perms_arr)):
         diff_val = 0
-        template_flux_matrix2D = np.load('Data/Template_library_10_stars/fluxMat_%dstar_%dpermNo.npy'%(num_stars, i))
+        template_flux_matrix2D = loadTemplates(perms_arr, num_stars, i)
         
         # reduce the dimensions of the matrix to cal. the minimizing statistic
         temp_vals_2Darr = splitFOVtoGrid(template_flux_matrix2D, num_splits)
@@ -261,15 +317,20 @@ def determineBestFit(u_pix, num_stars, perms_arr, data_vals_2Darr, num_splits):
         # calculate statistic betweek 'data image and template image'
         for row in range(num_splits):
             for col in range(num_splits):
-                n = temp_vals_2Darr[row][col]
-                m = data_vals_2Darr[row][col]
-                diff_val += (n-m)**2
+                m = temp_vals_2Darr[row][col]
+                n = data_vals_2Darr[row][col]
+                diff_val += (m-n)**2
 
         # cal the final chi-sq statistic for each template and save it in an array
         chi_squared.append(diff_val)        
         
+        # shows a progress bar during computations        
+        ss.showProgress(i, len(perms_arr))
+        
     # find the template with the minimime chi-squared
     min_idx = np.where(chi_squared == np.min(chi_squared))
-    template_flux_matrix2D = np.load('Data/Template_library_10_stars/fluxMat_%dstar_%dpermNo.npy'%(num_stars, min_idx[0][0]))        
+    template_flux_matrix2D = loadTemplates(perms_arr, num_stars, min_idx[0][0])
+    
+    # print result       
     print(r'The best-fitting permutation is %d with chi-squared = %.2f'%(min_idx[0][0], np.min(chi_squared)))
     return chi_squared, min_idx, template_flux_matrix2D
