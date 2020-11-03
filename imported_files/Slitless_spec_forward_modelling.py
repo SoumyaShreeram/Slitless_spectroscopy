@@ -56,25 +56,11 @@ def readCatalogFile(filename):
     """
     Function to read the magnitude and positions of the stars from the catalog file
     """
-    hdu_list = fits.open(filename)
-    # Ks band magnitude
-    mag_Ks = hdu_list[1].data['Ksmag']
-    mag_H = hdu_list[1].data['Hmag']
-
-    # position of stars in the sky
-    ra_Ks = hdu_list[1].data['RAKsdeg']
-    de_Ks = hdu_list[1].data['DEKsdeg']
-
-    # errors on magnitude and positions
-    e_mag_Ks = hdu_list[1].data['e_Ksmag']
-    e_ra_Ks = hdu_list[1].data['e_RAKsdeg']
-    e_de_Ks = hdu_list[1].data['e_DEKsdeg']
+    central_pixels = np.loadtxt(filename)
     
-    # close file
-    hdu_list.close()
-    
-    errors = [e_mag_Ks, e_ra_Ks, e_de_Ks]
-    return mag_Ks, ra_Ks, de_Ks, errors, mag_H
+    x_pos, y_pos = central_pixels[:, 0], central_pixels[:, 1] 
+    mag_H, mag_Ks = central_pixels[:, 4], central_pixels[:, 6]
+    return x_pos, y_pos, mag_H, mag_Ks
 
 def decideNumHotStars(hot_stars):
     """
@@ -92,52 +78,48 @@ def decideNumHotStars(hot_stars):
 
 """
 
-def selectFOV(de_ll, de_ul, de_Ks):
+def selectFOV(limits, x_pos, y_pos, mag_H, mag_Ks):
     """
     Function selects stars in the given region of the sky
     @de_ll, de_ul :: declination lower limits (ll) and upper limits (ul)
     @de_Ks :: declination indicies
-    """
-    de_idx_array = []
+    """   
+    # select desired coordinates
+    x_idx = np.where((x_pos>limits[0]) & (x_pos<limits[1]))
+    y_idx = np.where((y_pos>limits[2]) & (y_pos < limits[3]))
+    select_idx = np.where((x_pos>limits[0]) & (x_pos<limits[1]) & (y_pos>limits[2]) & (y_pos < limits[3]))
     
-    # select desired dec coordinates
-    for m, de in enumerate(de_Ks):
-        if de < de_ll and de > de_ul:
-            de_idx_array.append(m)
-            
-    print('Choosing %.2f percent stars from %d total stars.'%((len(de_idx_array)/len(de_Ks))*100, len(de_Ks)))
-    return de_idx_array
+    print('Choosing %.2f percent stars from %d total stars.'%((len(select_idx)/len(mag_Ks))*100, len(mag_Ks)))
+    return x_pos[x_idx], y_pos[y_idx], mag_H[select_idx], mag_Ks[select_idx]
 
-def selectRealStars(mag_Ks, ra_Ks, de_Ks):
+def selectRealStars(x_pos, y_pos, mag_H, mag_Ks):
     """
     Function selects real stars in the FOV
     @de_Ks, ra_Ks, mag_Ks :: declination , right ascension, and magnitude of stars arr
-    """
-    
-    idx = np.where(mag_Ks!=99)
+    """    
+    select_idx = np.where((mag_H!=99) & (mag_Ks!=99))
     print("Selecting real stars...")
-    return mag_Ks[mag_Ks!=99], ra_Ks[idx], de_Ks[idx]
+    return x_pos[select_idx], y_pos[select_idx], mag_H[select_idx], mag_Ks[select_idx]
 
-def cutOffFlux(mag_Ks, ra_Ks, de_Ks, cut_off_ll):
+def cutOffFlux(cut_off_ll, x_pos, y_pos, mag_H, mag_Ks):
     """
     Function cuts off stars below a certain flux from the bottom
     @de_Ks, ra_Ks, mag_Ks :: declination , right ascension, and magnitude of stars arr
     @cut_off_ll :: cut-off limit on the magnitude (note: mag scale is -ve)
     """
     
-    idx = np.where(mag_Ks<cut_off_ll)
+    select_idx = np.where(mag_Ks<cut_off_ll)
     print("Discarding stars with magnitude > %d."%cut_off_ll)
-    return mag_Ks[mag_Ks<cut_off_ll], ra_Ks[idx], de_Ks[idx]
+    return x_pos[select_idx], y_pos[select_idx], mag_H[select_idx], mag_Ks[select_idx]
 
-def selectMaxStars(mag_Ks, ra_Ks, de_Ks, max_stars):
+def selectMaxStars(max_stars, x_pos, y_pos, mag_H, mag_Ks):
     """
     Function selects #max_stars randomly within the FOV
     @de_Ks, ra_Ks, mag_Ks :: declination , right ascension, and magnitude of stars arr
-    """
-    
-    idx = ss.generateRandInt(0, len(mag_Ks)-1, max_stars)
+    """    
+    select_idx = ss.generateRandInt(0, len(mag_Ks)-1, max_stars)
     print("Selecting a max of %d stars in the FOV randomly."%max_stars)
-    return mag_Ks[idx], ra_Ks[idx], de_Ks[idx], idx
+    return x_pos[select_idx], y_pos[select_idx], mag_H[select_idx], mag_Ks[select_idx]
 
 def mapToFOVinPixels(de_Ks, ra_Ks, u_pix):
     """

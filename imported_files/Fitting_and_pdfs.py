@@ -115,3 +115,4 @@ def fitTemplateLibrary(template_dir, hot_stars_arr, num_stars, data_LSF_2Dmat, n
                                                 data_vals_2Darr, num_splits)
         chi_square3D.append(chi_squared_arr)            
     return chi_square3D
+

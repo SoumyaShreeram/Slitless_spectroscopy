@@ -226,7 +226,7 @@ def disperseStars(x_pos, y_pos, disperse_range, waves_k,  ax, dispersion_angle):
     @disperse_range :: range of wavelength in pixels chosen for dispersion
     @waves_k :: resolution with which the light is dispersed/spectra is binned into
     @ax :: axes handle for plotting the dispersion
-    @direction :: variable sets the orientation of the dispersion
+    @dispersion_angle :: variable sets the orientation of the dispersion
     """
     x_disperse, y_disperse = np.zeros((0, len(waves_k))), np.zeros((0, len(waves_k)))
     # dispersion range of wavelength
@@ -437,4 +437,5 @@ def printForgroundPopulation(mag, max_stars):
     """
     Function prints the number of stars that belong to the foreground population
     """
-    return print(r'Forground population of stars in sample (H-K_s > 1.1): %.2f percent'%((len(np.where(mag>1.1)[0])*100)/max_stars))
+    fore_stars = len(np.where(mag<1.1)[0])
+    return print(r'Forground population of stars in sample (H-K_s < 1.1): %d stars'%fore_stars)

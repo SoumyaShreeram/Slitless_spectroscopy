@@ -165,6 +165,8 @@ def plotMagDiffs(mag_H, cut_off_ll):
     fig, ax = plt.subplots(1,1,figsize=(9,8))
     
     ax.plot(mag_H[idx]-mag_Ks, mag_Ks, 'g.')
+    ax.invert_yaxis() # because that's how astronomers like it :\
+    
     #plot vertical line signifying the cut-off
     ax.axvline(forground_cutoff, np.min(mag_Ks), np.max(mag_Ks), color='k')
     setLabel(ax, r'$K_s$-H (mag)', r'$K_s$ (mag)', '', xlim, ylim, legend=False)
@@ -201,4 +203,20 @@ def plotChiSquare(perms_arr, chi_squared_arr):
     setLabel(ax, 'Permutation number', r'$\chi^2$', '', 'default', \
                     'default', legend=False)
     print('The best fitting permutation has the following spectral types:\n ', perms_arr[chi_squared_arr[1][0][0]]) 
+    return
+
+def plotChiSquredDistribution(chi_square3D, hot_stars_arr):
+    """
+    Function plots the chi-squared vs percent of hot stars
+    @chi_squared_arr :: [chi_squared, min_idx, template_flux_matrix2D] ` contains three quantities
+    @perms_arr :: arr containing all the possible permuations for a given configuration
+    """
+    min_chi_idx = [np.min(chi_square3D[i][1][0][0]) for i in range(len(hot_stars_arr))]
+    min_chi_sq = [chi_square3D[i][0][min_chi_idx[i]] for i in range(len(hot_stars_arr))]
+    
+    fig, ax = plt.subplots(1,1,figsize=(9,8))
+    ax.plot(hot_stars_arr*100, min_chi_sq, 'k--', marker='*', markerfacecolor='r')
+        
+    setLabel(ax, '% of hot stars in FOV', r'min[$\chi^2$] among all permutations', '', 'default', \
+                    'default', legend=False)
     return
