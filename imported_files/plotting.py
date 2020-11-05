@@ -60,7 +60,7 @@ def setLabel(ax, xlabel, ylabel, title, xlim, ylim, legend=True):
         ax.set_ylim(ylim)
     
     if legend:
-      ax.legend(loc=(1.04,0))
+        ax.legend(loc=(1.04,0))
     ax.grid(True)
     ax.set_title(title, fontsize=18)
     return
@@ -154,22 +154,24 @@ def plotDifferentGaussianLSFs(ax, flux_k2D, waves_k, sigma_LSF_arr, colors, xlim
     ax.set_yscale('log')
     return 
 
-def plotMagDiffs(mag_H, cut_off_ll):
+def plotMagDiffs(mag_H, mag_Ks, forground_star_cut, max_stars):
     """
     Function to plot the H-Ks magnitudes for estimating foreground population
     @mag_H :: H-band mag of stars
     @cut_off_ll :: lower limit on which we are cutting off stars
     """
-    mag_H = mag_H[mag_H<cut_off_ll]    
-
     fig, ax = plt.subplots(1,1,figsize=(9,8))
     
-    ax.plot(mag_H[idx]-mag_Ks, mag_Ks, 'g.')
-    ax.invert_yaxis() # because that's how astronomers like it :\
+    ax.plot(mag_H-mag_Ks, mag_Ks, 'g.')
     
     #plot vertical line signifying the cut-off
-    ax.axvline(forground_cutoff, np.min(mag_Ks), np.max(mag_Ks), color='k')
-    setLabel(ax, r'$K_s$-H (mag)', r'$K_s$ (mag)', '', xlim, ylim, legend=False)
+    ax.axvline(forground_star_cut, color='k')
+    
+    ax.invert_yaxis()    
+    setLabel(ax, r'H-$K_s$ (mag)', r'$K_s$ (mag)', '', 'default', 'default', legend=False)
+    
+    # print foreground population
+    ss.printForgroundPopulation(mag_H-mag_Ks, max_stars)
     return
 
 def plotLSFaddedSpectra(ax, num_spectra, waves_k, flux_LSF2D, pal, params_arr2D, title):
@@ -220,3 +222,19 @@ def plotChiSquredDistribution(chi_square3D, hot_stars_arr):
     setLabel(ax, '% of hot stars in FOV', r'min[$\chi^2$] among all permutations', '', 'default', \
                     'default', legend=False)
     return
+
+def plotForegroundGCstars(foreground_stars, gc_stars):
+    """
+    Function to plot the foreground vs gc star distribution as a function of the grid number    
+    """
+    fig, ax = plt.subplots(2,1,figsize=(9,18))
+    
+    # plotting both the foreground and gc stars
+    ax[0].plot(np.arange(len(foreground_stars)), foreground_stars, '.', color= 'purple', alpha=0.9, marker="1", markersize=10, label='Foreground stars')
+    ax[0].plot(np.arange(len(foreground_stars)), gc_stars,'.', color= '#ebdf09', alpha=0.9, marker="*", markersize=10, label='GC stars')
+    setLabel(ax[0], 'Grid number', 'Number of stars', '', 'default', 'default', legend=True)
+    
+    # plotting only the foreground stars
+    ax[1].plot(np.arange(len(foreground_stars)), foreground_stars, '.', color= 'purple', alpha=0.9, marker="1", markersize=10, label='Foreground stars')
+    setLabel(ax[1], 'Grid number', '', '', 'default', 'default', legend=True)
+    return 

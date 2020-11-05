@@ -72,30 +72,32 @@ def decideNumHotStars(hot_stars):
     stars_divide = [hot_stars, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1-hot_stars, 0.0, 0.0]
     return stars_divide
 
+def generateLimits(x_start, y_start, u_pix):
+    return x_start, x_start+u_pix, y_start, y_start+u_pix
 """
 
 ### 2. Functions for selection of stars
 
 """
 
-def selectFOV(limits, x_pos, y_pos, mag_H, mag_Ks):
+def selectFOV(limits, x_pos, y_pos, mag_H, mag_Ks, print_msg=True):
     """
     Function selects stars in the given region of the sky
-    @de_ll, de_ul :: declination lower limits (ll) and upper limits (ul)
-    @de_Ks :: declination indicies
+    @x_pos, y_pos, mag :: x_pos, y_pos, and magnitude of stars in the H and Ks band
     """   
     # select desired coordinates
     x_idx = np.where((x_pos>limits[0]) & (x_pos<limits[1]))
     y_idx = np.where((y_pos>limits[2]) & (y_pos < limits[3]))
     select_idx = np.where((x_pos>limits[0]) & (x_pos<limits[1]) & (y_pos>limits[2]) & (y_pos < limits[3]))
     
-    print('Choosing %.2f percent stars from %d total stars.'%((len(select_idx)/len(mag_Ks))*100, len(mag_Ks)))
+    if print_msg:
+        print('Choosing %d stars from %d total stars.'%(len(select_idx[0]), len(mag_Ks)))
     return x_pos[x_idx], y_pos[y_idx], mag_H[select_idx], mag_Ks[select_idx]
 
 def selectRealStars(x_pos, y_pos, mag_H, mag_Ks):
     """
     Function selects real stars in the FOV
-    @de_Ks, ra_Ks, mag_Ks :: declination , right ascension, and magnitude of stars arr
+    @x_pos, y_pos, mag :: x_pos, y_pos, and magnitude of stars in the H and Ks band
     """    
     select_idx = np.where((mag_H!=99) & (mag_Ks!=99))
     print("Selecting real stars...")
@@ -104,7 +106,7 @@ def selectRealStars(x_pos, y_pos, mag_H, mag_Ks):
 def cutOffFlux(cut_off_ll, x_pos, y_pos, mag_H, mag_Ks):
     """
     Function cuts off stars below a certain flux from the bottom
-    @de_Ks, ra_Ks, mag_Ks :: declination , right ascension, and magnitude of stars arr
+    @x_pos, y_pos, mag :: x_pos, y_pos, and magnitude of stars in the H and Ks band
     @cut_off_ll :: cut-off limit on the magnitude (note: mag scale is -ve)
     """
     
@@ -112,23 +114,30 @@ def cutOffFlux(cut_off_ll, x_pos, y_pos, mag_H, mag_Ks):
     print("Discarding stars with magnitude > %d."%cut_off_ll)
     return x_pos[select_idx], y_pos[select_idx], mag_H[select_idx], mag_Ks[select_idx]
 
-def selectMaxStars(max_stars, x_pos, y_pos, mag_H, mag_Ks):
+def discardNSC(x_pos, y_pos, mag_H, mag_Ks):
     """
-    Function selects #max_stars randomly within the FOV
-    @de_Ks, ra_Ks, mag_Ks :: declination , right ascension, and magnitude of stars arr
-    """    
-    select_idx = ss.generateRandInt(0, len(mag_Ks)-1, max_stars)
-    print("Selecting a max of %d stars in the FOV randomly."%max_stars)
-    return x_pos[select_idx], y_pos[select_idx], mag_H[select_idx], mag_Ks[select_idx]
+    Function cuts off stars belonging to the NSC
+    """
+    # radius of the NSC (pixels)
+    radius = 2414
+    
+    # converting x-y coordinates to pixels
+    d = ((x_pos - 20674)**2+(y_pos - 8194)**2)**0.5
+    
+    # discarding all stars outside the defined radius
+    count = np.where(d >= radius)
+    
+    print('Discarding all stars withing the NSC...')
+    return x_pos[count], y_pos[count], mag_H[count], mag_Ks[count]
 
-def mapToFOVinPixels(de_Ks, ra_Ks, u_pix):
+def mapToFOVinPixels(x_pos, y_pos, u_pix):
     """
     Function to map the r.a. and declination positions into pixels 
-    @de_Ks, ra_Ks, u_pix :: declination , right ascension, and size of the FOV in pixels
+    @x_pos, y_pos, mag :: x_pos, y_pos, and magnitude of stars in the H and Ks band
     """
-    funcX = interp1d([np.min(np.abs(de_Ks)), np.max(np.abs(de_Ks))], [0, u_pix-1])
-    funcY = interp1d([np.min(ra_Ks), np.max(ra_Ks)],[0, u_pix-1]) 
-    return funcX(np.abs(de_Ks)), funcY(ra_Ks)
+    funcX = interp1d([np.min(np.abs(x_pos)), np.max(np.abs(x_pos))], [0, u_pix-1])
+    funcY = interp1d([np.min(y_pos), np.max(y_pos)],[0, u_pix-1]) 
+    return funcX(np.abs(x_pos)), funcY(y_pos)
 
 def associateSpectraToStars(waves_k, stars_divide, max_stars, flux_LSF2D, params):
     """
@@ -159,7 +168,8 @@ def associateSpectraToStars(waves_k, stars_divide, max_stars, flux_LSF2D, params
             
         # if there are no stars with the chosen spectrum
         else:            
-            print('%d stars at Teff = %s K, log g = %s'%(num_stars*max_stars, params[idx][0], params[idx][1]))        
+            print('%d stars at Teff = %s K, log g = %s'%(num_stars*max_stars, params[idx][0], params[idx][1]))
+    print('---------------------------------\n')
     return flux_k2D, type_id
 
 """
