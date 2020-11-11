@@ -97,7 +97,14 @@ def starPositions(l_pix, u_pix, num_stars, generate_new_pos, filename):
         x_pos, y_pos = pos_arr[0], pos_arr[1]
     return x_pos, y_pos
 
-
+def defineDispersionRange(r, lambda0, band_width):
+    """
+    Function to find the dispersion range of the spectra
+    @r :: resolution of the telescope
+    @lambda0 :: equivalant wavelength of the selected band
+    @band_width :: wavelengths over which the spectra is obtained
+    """
+    return (r/lambda0)*band_width
 """
 
 ### 2. Opening and reading the file

@@ -52,7 +52,7 @@ import Simulating_Spectra as ss
 
 """
 
-def readCatalogFile(filename):
+def readCatalogFile(filename, pixel_factor):
     """
     Function to read the magnitude and positions of the stars from the catalog file
     """
@@ -60,7 +60,7 @@ def readCatalogFile(filename):
     
     x_pos, y_pos = central_pixels[:, 0], central_pixels[:, 1] 
     mag_H, mag_Ks = central_pixels[:, 4], central_pixels[:, 6]
-    return x_pos, y_pos, mag_H, mag_Ks
+    return x_pos/pixel_factor, y_pos/pixel_factor, mag_H, mag_Ks
 
 def decideNumHotStars(hot_stars):
     """
@@ -86,13 +86,11 @@ def selectFOV(limits, x_pos, y_pos, mag_H, mag_Ks, print_msg=True):
     @x_pos, y_pos, mag :: x_pos, y_pos, and magnitude of stars in the H and Ks band
     """   
     # select desired coordinates
-    x_idx = np.where((x_pos>limits[0]) & (x_pos<limits[1]))
-    y_idx = np.where((y_pos>limits[2]) & (y_pos < limits[3]))
     select_idx = np.where((x_pos>limits[0]) & (x_pos<limits[1]) & (y_pos>limits[2]) & (y_pos < limits[3]))
     
     if print_msg:
         print('Choosing %d stars from %d total stars.'%(len(select_idx[0]), len(mag_Ks)))
-    return x_pos[x_idx], y_pos[y_idx], mag_H[select_idx], mag_Ks[select_idx]
+    return x_pos[select_idx], y_pos[select_idx], mag_H[select_idx], mag_Ks[select_idx]
 
 def selectRealStars(x_pos, y_pos, mag_H, mag_Ks):
     """
@@ -114,15 +112,15 @@ def cutOffFlux(cut_off_ll, x_pos, y_pos, mag_H, mag_Ks):
     print("Discarding stars with magnitude > %d."%cut_off_ll)
     return x_pos[select_idx], y_pos[select_idx], mag_H[select_idx], mag_Ks[select_idx]
 
-def discardNSC(x_pos, y_pos, mag_H, mag_Ks):
+def discardNSC(x_pos, y_pos, mag_H, mag_Ks, pixel_factor):
     """
     Function cuts off stars belonging to the NSC
     """
     # radius of the NSC (pixels)
-    radius = 2414
+    radius = 2414/pixel_factor
     
     # converting x-y coordinates to pixels
-    d = ((x_pos - 20674)**2+(y_pos - 8194)**2)**0.5
+    d = ((x_pos - 20674/pixel_factor)**2+(y_pos - 8194/pixel_factor)**2)**0.5
     
     # discarding all stars outside the defined radius
     count = np.where(d >= radius)
@@ -191,7 +189,7 @@ def constructDataImage(perms, u_pix, flux_k2D, y_disperse, x_disperse):
     flux_PSF_2Dmatrix = np.load('Data/flux_PSF_2Dmatrix.npy')
     
     # choosing a random permutation number
-    idx = ss.generateRandInt(0, len(perms), 1)
+    idx = ss.generateRandInt(0, len(perms)-1, 1)
     
     # reorder the flux arr for the given permutation
     flux_k2D_temp = flux_k2D[np.array(perms[idx[0]])]
@@ -300,7 +298,7 @@ def determineBestFit(u_pix, num_stars, perms_arr, data_vals_2Darr, num_splits):
     chi_squared = []
     
     for i in range(len(perms_arr)):
-        diff_val = 0
+        diff_vals = 0
         template_flux_matrix2D = loadTemplates(perms_arr, num_stars, i)
         
         # reduce the dimensions of the matrix to cal. the minimizing statistic
@@ -309,12 +307,12 @@ def determineBestFit(u_pix, num_stars, perms_arr, data_vals_2Darr, num_splits):
         # calculate statistic betweek 'data image and template image'
         for row in range(num_splits):
             for col in range(num_splits):
-                m = temp_vals_2Darr[row][col]
-                n = data_vals_2Darr[row][col]
-                diff_val += (m-n)**2
-
+                model = temp_vals_2Darr[row][col]
+                data = data_vals_2Darr[row][col]
+                diff_vals += (model-data)**2
+                
         # cal the final chi-sq statistic for each template and save it in an array
-        chi_squared.append(diff_val)        
+        chi_squared.append(np.sum(diff_vals))        
         
         # shows a progress bar during computations        
         ss.showProgress(i, len(perms_arr))
@@ -324,5 +322,5 @@ def determineBestFit(u_pix, num_stars, perms_arr, data_vals_2Darr, num_splits):
     template_flux_matrix2D = loadTemplates(perms_arr, num_stars, min_idx[0][0])
     
     # print result       
-    print(r'The best-fitting permutation is %d with chi-squared = %.2f'%(min_idx[0][0], np.min(chi_squared)))
+    print('\n'+r' The best-fitting permutation is %d with chi-squared = %.2f'%(min_idx[0][0], np.min(chi_squared)))
     return chi_squared, min_idx, template_flux_matrix2D

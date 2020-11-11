@@ -60,7 +60,7 @@ from sympy import factorial
 
 """
 
-def selectionCuts(x_pos, y_pos, mag_H, mag_Ks, cut_off_ll):
+def selectionCuts(x_pos, y_pos, mag_H, mag_Ks, cut_off_ll, pixel_factor):
     """
     Function to select valid stars for the entire central file
     """
@@ -71,7 +71,7 @@ def selectionCuts(x_pos, y_pos, mag_H, mag_Ks, cut_off_ll):
     x_pos, y_pos, mag_H, mag_Ks = ssfm.cutOffFlux(cut_off_ll, x_pos, y_pos, mag_H, mag_Ks)
     
     # discards stars within the NSC
-    x_pos, y_pos, mag_H, mag_Ks  = ssfm.discardNSC(x_pos, y_pos, mag_H, mag_Ks)
+    x_pos, y_pos, mag_H, mag_Ks  = ssfm.discardNSC(x_pos, y_pos, mag_H, mag_Ks, pixel_factor)
     return x_pos, y_pos, mag_H, mag_Ks
 
 def printDivisors(n):
