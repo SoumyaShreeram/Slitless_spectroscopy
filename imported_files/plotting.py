@@ -237,4 +237,57 @@ def plotForegroundGCstars(foreground_stars, gc_stars):
     # plotting only the foreground stars
     ax[1].plot(np.arange(len(foreground_stars)), foreground_stars, '.', color= 'purple', alpha=0.9, marker="1", markersize=10, label='Foreground stars')
     setLabel(ax[1], 'Grid number', '', '', 'default', 'default', legend=True)
+    return
+
+"""
+
+Plots for notebook 5
+
+"""
+
+def plotAllNeighbours(x_pos, num_neighbours, neighbours_outside_FOV, total_neighbours):
+    """
+    Function plots all the neighbours to a given set of stars (defined within the FOV)
+    @x_pos :: arr holding the positions of all the stars
+    @num_neighbours :: ndarray holding information about the total number of neighbours within and in the total FOV
+    @neighbours_outside_FOV :: as the name suggest, star neighbours outside FOV
+    @total_neighbours :: total number of neighbours for all stars in the given FOV 
+    """
+    fig, ax = plt.subplots(2,1,figsize=(9,18))
+
+    # plotting the stars
+    ax[0].plot(np.arange(1, len(x_pos)+1), num_neighbours[0], 'o', color="ForestGreen", label='Stars within FOV')
+    ax[0].plot(np.arange(1, len(x_pos)+1), neighbours_outside_FOV, 'd', color="red", label='Stars outside FOV')
+
+    setLabel(ax[0], 'Star number', 'Neighbouring stars', '', 'default', 'default', legend=True)
+
+    ax[1].plot(np.arange(1, len(x_pos)+1), total_neighbours, 's', color="DarkBlue")
+
+    setLabel(ax[1], 'Star number', 'Total Neighbouring stars', '', 'default', 'default', legend=False)
     return 
+
+def visualizingNeighbours(idx, x_pos, y_pos, star_neighbours):
+    """
+    Function to visualize which stars form neighbours to a given star
+    @idx :: index to choose a random star
+    @x_pos, y_pos :: positions of all the stars in the given FOV
+    @star_neighbours :: ndarray holding info about the neighbours' [x_pos, y_pos, mag_Ks, mag_H] for all stars in the given set
+    """
+    fig, ax = plt.subplots(1,1,figsize=(9,8))
+    
+    # plotting all the stars in the FOV
+    ax.plot(x_pos, y_pos, '.', color="grey")
+    
+    # plotting all the neighbours to the star of interest
+    ax.plot(star_neighbours[0][idx][0],star_neighbours[0][idx][1], "b*")
+    
+    # the star of interest itself
+    ax.plot(x_pos[idx], y_pos[idx], 'r*', markersize=15)
+    
+    setLabel(ax, 'x-position (pixels)', 'y-position (pixels)', '', 'default', 'default', legend=False)
+    
+    # printing the results
+    print('Number of neighbouring stars in FOV:', len(star_neighbours[0][idx][0]))
+    print('Number of neighbouring stars outside FOV:', len(star_neighbours[1][idx][0]))
+    shortenXYaxisTicks(ax)
+    return

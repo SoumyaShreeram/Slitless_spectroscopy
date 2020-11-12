@@ -137,7 +137,7 @@ def mapToFOVinPixels(x_pos, y_pos, u_pix):
     funcY = interp1d([np.min(y_pos), np.max(y_pos)],[0, u_pix-1]) 
     return funcX(np.abs(x_pos)), funcY(y_pos)
 
-def associateSpectraToStars(waves_k, stars_divide, max_stars, flux_LSF2D, params):
+def associateSpectraToStars(waves_k, stars_divide, max_stars, flux_LSF2D, params, print_msg):
     """
     Function to associate the spectra of a certain type to the star
     @waves_k :: wavelength arr in the k-band
@@ -162,12 +162,15 @@ def associateSpectraToStars(waves_k, stars_divide, max_stars, flux_LSF2D, params
                 
                 # add the spectra for the star into the array
                 flux_k2D = np.append(flux_k2D, [flux_LSF2D[idx]], axis=0)
-            print('%d stars at Teff = %s K, log g = %s'%(num_stars*max_stars, params[idx][0], params[idx][1]))
+            if print_msg:
+                print('%d stars at Teff = %s K, log g = %s'%(num_stars*max_stars, params[idx][0], params[idx][1]))
             
         # if there are no stars with the chosen spectrum
         else:            
-            print('%d stars at Teff = %s K, log g = %s'%(num_stars*max_stars, params[idx][0], params[idx][1]))
-    print('---------------------------------\n')
+            if print_msg:
+                print('%d stars at Teff = %s K, log g = %s'%(num_stars*max_stars, params[idx][0], params[idx][1]))
+    if print_msg:
+                print('---------------------------------\n')
     return flux_k2D, type_id
 
 """

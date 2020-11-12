@@ -82,3 +82,77 @@ def findStarAndNeighbours(x_pos, y_pos, mag_H, mag_Ks, disperse_range, width, se
         num_neighbours_out.append(len(mKs_out))
         
     return [star_neighbours_in, star_neighbours_out], [num_neighbours_in, num_neighbours_out]
+
+def generateDirToSavePerms(template_dir, num_stars, hot_stars):
+    folder0 = os.path.join(template_dir,'%d_stars'%num_stars)
+    folder1 = os.path.join(folder0,'%d_hot_stars'%hot_stars)
+    
+    if not os.path.exists(folder0):
+        os.mkdir(folder0)
+        os.mkdir(folder1)
+    
+    if os.path.exists(folder0) and not os.path.exists(folder1):            
+            os.mkdir(folder1)       
+    return
+
+def generateNeighbourPerms(hot_stars, num_stars, type_id, template_dir, stars_divide):
+    """
+    Function to generate the permutation matrix that holds information about all possible permutations that the neighbours of a star, for a given distribution, can take
+    @hot_stars :: percent of hot stars among 
+    @num_stars :: total number of neighbouring stars
+    @type_id :: arr with info on the distribution of hot-cold stars labeled by an integer between 0-9
+    @template_dir :: directory where the templates are stored
+    @stars_divide :: arr with info on how the hot-cold stars are distributed 
+    """
+    if hot_stars <= 0.5:        
+        # generate all possible permutations that exist for the given distribution of stars
+        perms = ssfm.generateAllCombinations(type_id)
+        
+        # generate the directory to save the permutations
+        generateDirToSavePerms(template_dir, num_stars, hot_stars*num_stars)       
+            
+        # save the permutation array
+        np.save(template_dir+'%d_stars/%d_hot_stars/perm_arr.npy'%(num_stars, hot_stars*num_stars), perms)
+    else:
+        # load the complimentary permutation array
+        perms = np.load(template_dir+'%d_stars/%d_hot_stars/perm_arr.npy'%(num_stars, num_stars-hot_stars*num_stars))
+        
+        # identify the value for the hot and cold spectra
+        hot_star_val = np.nonzero(stars_divide)[0][0]
+        if len(np.nonzero(stars_divide)[0]) > 1:
+            cold_star_val = np.nonzero(stars_divide)[0][1]
+
+        # distinguishing between a hot and cold star
+        hot_idx = np.where(np.array(perms) < 4)
+        cold_idx = np.where(np.array(perms) > 4)
+
+        # swapping the indicies
+        perms[cold_idx] = hot_star_val
+        if len(np.nonzero(stars_divide)[0]) > 1:
+            perms[hot_idx] = cold_star_val
+        
+        # generate directory to save the permutation array, and save the perm arr
+        generateDirToSavePerms(template_dir, num_stars, hot_stars*num_stars)
+        np.save(template_dir+'%d_stars/%d_hot_stars/perm_arr.npy'%(num_stars, hot_stars*num_stars), perms)
+    return perms
+
+def generateSaveTemplates(perms, flux_LSF2D, flux_k2D, template_dir, num_stars, hot_stars):
+    """
+    Function to generate and save the templates 
+    @perms :: 2d array holding all permutation possible for a given ensemble
+    @flux_LSF2D :: arr holding 10 different spectra (from hot to cold stars)
+    @flux_k2D :: arr with spectra = number of stars with 2 types of stars (hot and cold)
+    @hot_stars :: percent of hot stars among 
+    @num_stars :: total number of neighbouring stars
+    @template_dir :: directory where the templates are stored
+    """
+    if len(perms) == 1:
+        flux_k2D = flux_LSF2D[np.array(perms)]
+        
+    for i in range(len(perms)):
+        # reorder the flux arr for the given permutation
+        flux_k2D = flux_LSF2D[np.array(perms[i])]
+
+        # save the information that will be later useful to generate 2D templates
+        np.save(template_dir+'%d_stars/%d_hot_stars/flux_%dperm.npy'%(num_stars, hot_stars*num_stars, i), flux_k2D)          
+    return 
