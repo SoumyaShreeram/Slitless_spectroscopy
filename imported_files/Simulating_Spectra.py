@@ -45,10 +45,6 @@ import sys
 
 import matplotlib
 
-# for manupilating spectra
-from specutils.manipulation import (box_smooth, gaussian_smooth, trapezoid_smooth)
-from specutils import Spectrum1D
-
 """
 
 ### 1. Functions for defining input parameters

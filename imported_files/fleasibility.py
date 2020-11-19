@@ -133,7 +133,7 @@ def calPermutations(hot_stars, num_stars, type_id_arr, num_perms):
     
     # type_id is the required array to compute all possible required permutations
     _, type_id = ssfm.associateSpectraToStars(waves_k, stars_divide, num_stars, \
-                                      flux_LSF2D, params)    
+                                      flux_LSF2D, params, print_msg=True)    
     type_id_arr.append(type_id)
     
     m = hot_stars*num_stars

@@ -6,6 +6,8 @@
 1. Functions for reading in the catalog
 2. Functions for selection of stars
 
+Note that the construction of data and template matricies are valid only for the 10 star model. For the generalized case refer to 'star_by_star_template_library.py'
+
 **Author**: Soumya Shreeram <br>
 **Supervisors**: Nadine Neumayer, Francisco Nogueras-Lara <br>
 **Date**: 9th October 2020
@@ -128,13 +130,22 @@ def discardNSC(x_pos, y_pos, mag_H, mag_Ks, pixel_factor):
     print('Discarding all stars withing the NSC...')
     return x_pos[count], y_pos[count], mag_H[count], mag_Ks[count]
 
-def mapToFOVinPixels(x_pos, y_pos, u_pix):
+def discardForegroundStars(x_pos, y_pos, mag_H, mag_Ks, foreground_cutoff):
+    """
+    Function to discard the foreground stars that pollute the Galactic center stars
+    """
+    count = np.where( (mag_H - mag_Ks)>1.1 )
+    print('Discarding all the forground stars...')
+    return x_pos[count], y_pos[count], mag_H[count], mag_Ks[count]
+
+
+def mapToFOVinPixels(x_pos, y_pos, u_pix_x, u_pix_y):
     """
     Function to map the r.a. and declination positions into pixels 
     @x_pos, y_pos, mag :: x_pos, y_pos, and magnitude of stars in the H and Ks band
-    """
-    funcX = interp1d([np.min(np.abs(x_pos)), np.max(np.abs(x_pos))], [0, u_pix-1])
-    funcY = interp1d([np.min(y_pos), np.max(y_pos)],[0, u_pix-1]) 
+    """    
+    funcX = interp1d([np.min(np.abs(x_pos)), np.max(np.abs(x_pos))], [0, u_pix_x-1])
+    funcY = interp1d([np.min(y_pos), np.max(y_pos)],[0, u_pix_y-1]) 
     return funcX(np.abs(x_pos)), funcY(y_pos)
 
 def associateSpectraToStars(waves_k, stars_divide, max_stars, flux_LSF2D, params, print_msg):
@@ -186,10 +197,10 @@ def generateAllCombinations(type_id):
 
 def constructDataImage(perms, u_pix, flux_k2D, y_disperse, x_disperse):
     """
-    Function to construct an arbitary 'data image' that considers a possible spectral combinations of stars
+    Function to construct an arbitary 'data image' that considers a possible spectral combinations of stars for the 10 star model
     """
     flux_matrix2D = np.zeros((u_pix, u_pix))
-    flux_PSF_2Dmatrix = np.load('Data/flux_PSF_2Dmatrix.npy')
+    flux_PSF_2Dmatrix = np.load('Data/10_star_model/flux_PSF_2Dmatrix.npy')
     
     # choosing a random permutation number
     idx = ss.generateRandInt(0, len(perms)-1, 1)
@@ -232,7 +243,7 @@ def constructSpectralTemplates(u_pix, y_disperse, x_disperse, type_id, flux_k2D)
     """
     # array generates all possible realizations of stars with spectra
     perms = generateAllCombinations(type_id)
-    flux_PSF_2Dmatrix = np.load('Data/flux_PSF_2Dmatrix.npy')
+    flux_PSF_2Dmatrix = np.load('Data/10_star_model/flux_PSF_2Dmatrix.npy')
     
     for i in range(len(perms)):
         flux_matrix2D = np.zeros((u_pix, u_pix))

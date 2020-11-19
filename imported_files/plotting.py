@@ -30,6 +30,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.axes3d import Axes3D
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from matplotlib import cm
+from matplotlib.collections import PatchCollection
+from matplotlib.patches import Rectangle
 
 import matplotlib
 
@@ -80,7 +82,7 @@ def shortenXYaxisTicks(ax):
 """### 2. Functions for plotting other things
 """
 
-def plotDispersedStars(x_pos, y_pos, l_pix, u_pix, disperse_range, waves_k, dispersion_angle):
+def plotDispersedStars(ax, x_pos, y_pos, disperse_range, waves_k, dispersion_angle):
     """
     Function plots a contour map for the dispersion caused by slitless spectroscopy
     @noise_level :: decides the amplitude of noise to add to the flux (in %)
@@ -89,16 +91,13 @@ def plotDispersedStars(x_pos, y_pos, l_pix, u_pix, disperse_range, waves_k, disp
 
     @Returns :: noise_matrix2D :: 2D noise matrix
     """
-    fig, ax = plt.subplots(1,1,figsize=(9,8))
-    
-
     # dispersing them in the k-band
     x_disperse, y_disperse = ss.disperseStars(x_pos, y_pos, disperse_range, waves_k, ax, \
                                               dispersion_angle)
     # plotting the stars
     ax.plot(x_pos, y_pos, ".", color= '#ebdf09', alpha=0.9, marker="*", markersize=10)
-    setLabel(ax, 'x-axis position', 'y-axis position', '', [l_pix, u_pix], \
-                [l_pix, u_pix], legend=False)
+    setLabel(ax, 'x-axis position', 'y-axis position', '', 'default', \
+                'default', legend=False)
     return x_disperse, y_disperse
 
 def plotContour(l_pix, u_pix, flux_matrix2D):
@@ -116,7 +115,7 @@ def plotContour(l_pix, u_pix, flux_matrix2D):
     plot = ax.contourf(X, Y, flux_matrix2D, cmap='YlGnBu')
 
     # labeling and setting colorbar
-    setLabel(ax, 'x-axis position', 'y-axis position', '', [l_pix, u_pix], [l_pix, u_pix], legend=False)
+    setLabel(ax, 'x-axis position', 'y-axis position', '', 'default', 'default', legend=False)
     cbar = plt.colorbar(plot, aspect=10);
     return
 
@@ -279,7 +278,7 @@ def visualizingNeighbours(idx, x_pos, y_pos, star_neighbours):
     ax.plot(x_pos, y_pos, '.', color="grey")
     
     # plotting all the neighbours to the star of interest
-    ax.plot(star_neighbours[0][idx][0],star_neighbours[0][idx][1], "b*")
+    ax.plot(star_neighbours[0][idx][0], star_neighbours[0][idx][1], "b*")
     
     # the star of interest itself
     ax.plot(x_pos[idx], y_pos[idx], 'r*', markersize=15)
@@ -290,4 +289,55 @@ def visualizingNeighbours(idx, x_pos, y_pos, star_neighbours):
     print('Number of neighbouring stars in FOV:', len(star_neighbours[0][idx][0]))
     print('Number of neighbouring stars outside FOV:', len(star_neighbours[1][idx][0]))
     shortenXYaxisTicks(ax)
+    return
+
+def plotAllStarsWithXneighbours(star_neighbours, x_pos, y_pos, stars_with_n_neighbours):
+    """
+    Function to plot all the stars that have 'n' number of neighbours within and outside the FOV
+    @
+    """
+    fig, ax = plt.subplots(1,1,figsize=(16,8))
+
+    for idx in stars_with_n_neighbours[0]:
+        # plotting all the neighbours to the star of interest    
+        ax.plot(star_neighbours[0][idx][0], star_neighbours[0][idx][1], "bo", markersize=12)
+        ax.plot(star_neighbours[1][idx][0], star_neighbours[1][idx][1], "*", color='#54f542', markersize=10)
+
+        # the star of interest itself
+        ax.plot(x_pos[idx], y_pos[idx], 'r*', markersize=15)
+
+    setLabel(ax, 'x-axis position', 'y-axis position', '', 'default', \
+                    'default', legend=False)
+    ax.set_title('Regions with stars containing %d neighbours'%len(star_neighbours[1][idx][0]))
+    return 
+
+def showTheRegionOfAnalysis(selected_c_pxls, stars_outside_FOV, x_start, y_start, u_pix):
+    """
+    Function plots the region that is considered for the analysis
+    """
+    fig, ax = plt.subplots(1,1,figsize=(16,8))
+
+    # plotting the stars within the FOV
+    ax.plot(selected_c_pxls[0], selected_c_pxls[1], ".", color= '#e8d55a',\
+            alpha=0.9, marker="*", markersize=10, label='Within FOV')
+
+    # create a Rectangle patch
+    rect = Rectangle((x_start, y_start),u_pix,u_pix,linewidth=1,edgecolor='r',\
+                     facecolor='None', zorder=10, label='FOV')
+    
+    # left Rectangle patch    
+    rect_left = Rectangle((np.min(stars_outside_FOV[2]), y_start), \
+                          x_start-np.min(stars_outside_FOV[2]),u_pix,linewidth=1,edgecolor='r', \
+                          facecolor='None', zorder=10, hatch='/')
+    
+    # right Rectangle patch
+    rect_right = Rectangle((x_start+u_pix, y_start), np.max(stars_outside_FOV[2])-x_start-u_pix,u_pix,linewidth=1,edgecolor='r', facecolor='None', zorder=10, hatch='/', label='Outside defined FOV')
+
+    # add the patch to the Axes
+    ax.add_patch(rect)
+    ax.add_patch(rect_left)
+    ax.add_patch(rect_right)
+    
+    # set labels
+    setLabel(ax, 'x-axis position', 'y-axis position', 'Region considered for the analysis', 'default', 'default', legend=True)
     return
