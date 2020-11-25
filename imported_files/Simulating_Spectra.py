@@ -222,7 +222,7 @@ def fluxKband(waves_k, flux_arr2D, pos, flux_k2D, idx, disperse_range, statistic
         flux_k2D = np.append(flux_k2D, [flux_k], axis=0)
     return flux_k2D
 
-def disperseStars(x_pos, y_pos, disperse_range, waves_k,  ax, dispersion_angle):
+def disperseStars(x_pos, y_pos, disperse_range, waves_k,  ax, dispersion_angle, no_plot):
     """
     Function to disperse the flux coming from a star
     @x_pos, y_pos :: the x and y position of the star  
@@ -240,9 +240,10 @@ def disperseStars(x_pos, y_pos, disperse_range, waves_k,  ax, dispersion_angle):
         angle = (dispersion_angle*np.pi)/180
 
         intercept = y_pos[i]-np.tan(angle)*x_d
-        y_d = np.tan(angle)*x_d + intercept 
-
-        ax.plot(x_d, y_d, '.', color='#d8b6fa')
+        y_d = np.tan(angle)*x_d + intercept
+        
+        if not no_plot:
+            ax.plot(x_d, y_d, '.', color='#d8b6fa')
 
         # save the values
         x_disperse = np.append(x_disperse, [x_d], axis=0)
@@ -254,20 +255,35 @@ def checkIfInsideFOV(col, row, u_pix):
     Function makes sure to NOT consider contributions outside the FOV
     """
     # if there are no issues, leave this as it is
-    edge_cutter = len(col)      
+    edge_cutter = len(col)
     
-    # checks if the spectra along the column are exceeding FOV
-    if np.any(col>u_pix-1):
-        col = col[col<u_pix]
-        row = row[0:len(col)]
-        edge_cutter = len(col)
-    
-    # checks if the spectra along the row are exceeding FOV
-    if np.any(row>u_pix-1):
-        row = row[row<u_pix]
-        col = col[0:len(row)]
-        edge_cutter = len(row)
+    # if FOV is a symmetric square
+    if isinstance(u_pix, (int, float)):
+        # checks if the spectra along the column are exceeding FOV
+        if np.any(col>u_pix-1):
+            col = col[col<u_pix]
+            row = row[0:len(col)]
+            edge_cutter = len(col)
 
+        # checks if the spectra along the row are exceeding FOV
+        if np.any(row>u_pix-1):
+            row = row[row<u_pix]
+            col = col[0:len(row)]
+            edge_cutter = len(row)
+            
+    # if FOV is a rectangle
+    if isinstance(u_pix, (list, tuple, np.ndarray)):
+        if np.any(col>u_pix[0]-1):
+            col = col[col<u_pix[0]]
+            row = row[0:len(col)]
+            edge_cutter = len(col)
+
+        # checks if the spectra along the row are exceeding FOV
+        if np.any(row>u_pix[1]-1):
+            row = row[row<u_pix[1]]
+            col = col[0:len(row)]
+            edge_cutter = len(row)
+            
     return col, row, edge_cutter
 
 def construct2DFluxMatrix(flux_matrix2D, y_disperse, x_disperse, flux_k2D, u_pix):
@@ -280,6 +296,12 @@ def construct2DFluxMatrix(flux_matrix2D, y_disperse, x_disperse, flux_k2D, u_pix
     
     @Returns :: flux_matrix2D :: 2D matrix filled with values
     """
+    # if FOV is a symmetric square
+    if isinstance(u_pix, (int, float)):
+        shape = (u_pix, u_pix)
+    if isinstance(u_pix, (list, tuple, np.ndarray)): # if FOV is a rectangle
+        shape = (u_pix[1], u_pix[0]) 
+        
     for i in range(len(y_disperse)):
         row = y_disperse[i]
         col = x_disperse[i]   
@@ -288,7 +310,7 @@ def construct2DFluxMatrix(flux_matrix2D, y_disperse, x_disperse, flux_k2D, u_pix
         col, row, edge_cutter = checkIfInsideFOV(col, row, u_pix)  
         
         # csr_matrix from scipy puts together a 2D matrix with the desired info
-        temp = csr_matrix((flux_k2D[i][0:edge_cutter], (row, col)), shape=(u_pix, u_pix)).toarray()
+        temp = csr_matrix((flux_k2D[i][0:edge_cutter], (row, col)), shape=shape).toarray()
         flux_matrix2D = flux_matrix2D+temp
     return flux_matrix2D
 
@@ -305,10 +327,14 @@ def addNoise(flux_2Dmat, u_pix):
 
     @Returns :: noise_matrix2D 2Darray of flux with noise
     """
-    shape=(u_pix, u_pix)
-    noise_matrix2D = np.random.poisson(lam=flux_2Dmat, size=shape)
+    if isinstance(u_pix, (int, float)):
+        shape=(u_pix, u_pix)
+        noise_matrix2D = np.random.poisson(lam=flux_2Dmat, size=shape)
+        
+    if isinstance(u_pix, (list, tuple, np.ndarray)):
+        shape=(u_pix[0], u_pix[1])
+        noise_matrix2D = np.random.poisson(lam=flux_2Dmat, size=shape)
     return noise_matrix2D
-
 """
 
 4.2 Add LSF, PSF

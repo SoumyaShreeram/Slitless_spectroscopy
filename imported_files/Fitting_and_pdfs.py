@@ -33,11 +33,6 @@ from matplotlib import cm
 
 import matplotlib
 
-# for manupilating spectra
-from specutils.manipulation import (box_smooth, gaussian_smooth, trapezoid_smooth)
-from specutils import Spectrum1D
-
-
 # for doing combinatorics with spectra
 from itertools import permutations
 
@@ -51,7 +46,7 @@ import plotting as pt
 
 """
 
-def dataMatrix(template_dir, hot_stars, num_stars, u_pix, l_pix, x_pos, y_pos, disperse_range, dispersion_angle, templates_exist):
+def dataMatrix10StarsCase(template_dir, hot_stars, num_stars, u_pix, l_pix, x_pos, y_pos, disperse_range, dispersion_angle, templates_exist):
     """
     Function to build a data matrix from the template library for a given distribution of stars
     @template_dir :: directory where the templates are stored
@@ -86,9 +81,38 @@ def dataMatrix(template_dir, hot_stars, num_stars, u_pix, l_pix, x_pos, y_pos, d
 
     # building a data image that considers all possible (distinguishable) permuations
     perms_arr = np.load(template_dir+'hot_stars%d/perm_arr.npy'%(hot_stars*num_stars))
-    data_LSF_2Dmat, perm_no = ssfm.constructDataImage(perms_arr, u_pix, flux_k2D, \
+    data_LSF_2Dmat, perm_no = ssfm.constructDataImage10Stars(perms_arr, u_pix, flux_k2D, \
                                             y_disperse, x_disperse)
     return data_LSF_2Dmat, perm_no
+
+def dataMatrixNStarsCase(hot_stars, num_stars, u_pix_arr, x, y, mKs, disperse_range, dispersion_angle):
+    """
+    Function to build a data matrix from the template library for a given distribution of stars
+    @template_dir :: directory where the templates are stored
+    @hot_stars :: percent of hot stars in the FOV
+    @num_stars :: number of stars in the FOV
+    @l_pix, u_pix :: lower and upper limit in pixels defining the FOV
+    @x_pos, y_pos :: the x and y position of the star  
+    @disperse_range :: range of wavelength in pixels chosen for dispersion
+    @dispersion_angle :: variable sets the orientation of the dispersion
+    @templates_exist :: boolean to check if the templates exist for the given population
+    
+    Returns ::
+    @data_LSF_2Dmat :: 2darray containing the so-called data
+    """
+    # Load the 10 random spectra with added LSF, which can be associated with the stars in the FOV.
+    flux_LSF2D, params = np.load('Data/flux_K2D_LSF_norm.npy'), np.load('Data/params.npy')
+    waves_k = np.load('Data/waves_k.npy')
+          
+    # division of stars chosen in FOV, considering 10 temperatures with 10 log g's
+    stars_divide = ssfm.decideNumHotStars(hot_stars=hot_stars)
+    x_disperse, y_disperse = pt.plotDispersedStars('', x, y, disperse_range, waves_k, dispersion_angle, no_plot=True)
+    print(np.any(x_disperse == 0))
+    # building a data image that considers ONE of the all possible (distinguishable) permuations
+    template_dir = 'Data/Template_library/'       
+    data_LSF_2Dmat, perm_no  = ssfm.constructDataImageNstars(template_dir, u_pix_arr, y_disperse, x_disperse, hot_stars, num_stars, mKs)
+    return data_LSF_2Dmat, perm_no
+
 
 def fitTemplateLibrary(template_dir, hot_stars_arr, num_stars, data_LSF_2Dmat, num_splits, u_pix):
     """
@@ -115,4 +139,3 @@ def fitTemplateLibrary(template_dir, hot_stars_arr, num_stars, data_LSF_2Dmat, n
                                                 data_vals_2Darr, num_splits)
         chi_square3D.append(chi_squared_arr)            
     return chi_square3D
-

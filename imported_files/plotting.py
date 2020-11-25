@@ -35,10 +35,6 @@ from matplotlib.patches import Rectangle
 
 import matplotlib
 
-# for manupilating spectra
-from specutils.manipulation import (box_smooth, gaussian_smooth, trapezoid_smooth)
-from specutils import Spectrum1D
-
 # personal file imports
 import Simulating_Spectra as ss
 
@@ -82,7 +78,7 @@ def shortenXYaxisTicks(ax):
 """### 2. Functions for plotting other things
 """
 
-def plotDispersedStars(ax, x_pos, y_pos, disperse_range, waves_k, dispersion_angle):
+def plotDispersedStars(ax, x_pos, y_pos, disperse_range, waves_k, dispersion_angle, no_plot):
     """
     Function plots a contour map for the dispersion caused by slitless spectroscopy
     @noise_level :: decides the amplitude of noise to add to the flux (in %)
@@ -93,14 +89,16 @@ def plotDispersedStars(ax, x_pos, y_pos, disperse_range, waves_k, dispersion_ang
     """
     # dispersing them in the k-band
     x_disperse, y_disperse = ss.disperseStars(x_pos, y_pos, disperse_range, waves_k, ax, \
-                                              dispersion_angle)
-    # plotting the stars
-    ax.plot(x_pos, y_pos, ".", color= '#ebdf09', alpha=0.9, marker="*", markersize=10)
-    setLabel(ax, 'x-axis position', 'y-axis position', '', 'default', \
-                'default', legend=False)
+                                              dispersion_angle, no_plot)
+    if not no_plot:
+        # plotting the stars
+        ax.plot(x_pos, y_pos, ".", color= '#ebdf09', alpha=0.9, marker="*", markersize=10)
+        setLabel(ax, 'x-axis position', 'y-axis position', '', 'default', \
+                    'default', legend=False)
     return x_disperse, y_disperse
 
-def plotContour(l_pix, u_pix, flux_matrix2D):
+
+def plotContour(u_pix, flux_matrix2D):
     """
     Function plots a contour map for the dispersion caused by slitless spectroscopy
     @noise_level :: decides the amplitude of noise to add to the flux (in %)
@@ -110,8 +108,12 @@ def plotContour(l_pix, u_pix, flux_matrix2D):
     @Returns :: noise_matrix2D :: 2D noise matrix
     """
     fig, ax = plt.subplots(1,1,figsize=(9,8))
-
-    X, Y = np.meshgrid(np.linspace(0, u_pix, u_pix), np.linspace(0, u_pix, u_pix))
+    
+    if isinstance(u_pix, (int, float)):
+        X, Y = np.meshgrid(np.linspace(0, u_pix, u_pix), np.linspace(0, u_pix, u_pix))
+    if isinstance(u_pix, (list, tuple, np.ndarray)): # if FOV is a rectangle
+        X, Y = np.meshgrid(np.linspace(0, u_pix[0], u_pix[0]), np.linspace(0, u_pix[1], u_pix[1]))
+    
     plot = ax.contourf(X, Y, flux_matrix2D, cmap='YlGnBu')
 
     # labeling and setting colorbar
@@ -287,11 +289,11 @@ def visualizingNeighbours(idx, x_pos, y_pos, star_neighbours):
     
     # printing the results
     print('Number of neighbouring stars in FOV:', len(star_neighbours[0][idx][0]))
-    print('Number of neighbouring stars outside FOV:', len(star_neighbours[1][idx][0]))
+    print('Number of neighbouring stars in effective FOV:', len(star_neighbours[1][idx][0]))
     shortenXYaxisTicks(ax)
     return
 
-def plotAllStarsWithXneighbours(star_neighbours, x_pos, y_pos, stars_with_n_neighbours):
+def plotAllStarsWithNneighbours(star_neighbours, x_pos, y_pos, stars_with_n_neighbours):
     """
     Function to plot all the stars that have 'n' number of neighbours within and outside the FOV
     @

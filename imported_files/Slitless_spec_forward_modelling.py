@@ -37,10 +37,6 @@ from matplotlib import cm
 
 import matplotlib
 
-# for manupilating spectra
-from specutils.manipulation import (box_smooth, gaussian_smooth, trapezoid_smooth)
-from specutils import Spectrum1D
-
 
 # for doing combinatorics with spectra
 from itertools import permutations
@@ -148,12 +144,12 @@ def mapToFOVinPixels(x_pos, y_pos, u_pix_x, u_pix_y):
     funcY = interp1d([np.min(y_pos), np.max(y_pos)],[0, u_pix_y-1]) 
     return funcX(np.abs(x_pos)), funcY(y_pos)
 
-def associateSpectraToStars(waves_k, stars_divide, max_stars, flux_LSF2D, params, print_msg):
+def associateSpectraToStars(waves_k, stars_divide, tot_stars, flux_LSF2D, params, print_msg):
     """
     Function to associate the spectra of a certain type to the star
     @waves_k :: wavelength arr in the k-band
     @stars_divide :: arr that categorieses the #stars
-    @max_stars :: max_number of stars in the FOV
+    @tot_stars :: total number of stars in the FOV
     @flux_LSD2D :: flux array containins spectra for different spectral_types
     @params :: arr containing [t_eff, log_g, Fe_H, alpha, spectral_types]
     
@@ -165,21 +161,24 @@ def associateSpectraToStars(waves_k, stars_divide, max_stars, flux_LSF2D, params
     flux_k2D = np.zeros((0, len(waves_k)))
     type_id = []
     
-    for idx, num_stars in enumerate(stars_divide):
-        if num_stars*max_stars != 0:
-            for i in range(int(num_stars*max_stars)):
+    # to get the right result for the iteration
+    tot_stars = tot_stars+1
+    
+    for idx, star_percent in enumerate(stars_divide):
+        if star_percent*tot_stars != 0:
+            for i in range(int(star_percent*tot_stars)):
                 # keep track of the type of the star
                 type_id.append(label_arr[idx])
                 
                 # add the spectra for the star into the array
                 flux_k2D = np.append(flux_k2D, [flux_LSF2D[idx]], axis=0)
             if print_msg:
-                print('%d stars at Teff = %s K, log g = %s'%(num_stars*max_stars, params[idx][0], params[idx][1]))
+                print('%d stars at Teff = %s K, log g = %s'%(star_percent*tot_stars, params[idx][0], params[idx][1]))
             
         # if there are no stars with the chosen spectrum
         else:            
             if print_msg:
-                print('%d stars at Teff = %s K, log g = %s'%(num_stars*max_stars, params[idx][0], params[idx][1]))
+                print('%d stars at Teff = %s K, log g = %s'%(star_percent*tot_stars, params[idx][0], params[idx][1]))
     if print_msg:
                 print('---------------------------------\n')
     return flux_k2D, type_id
@@ -195,7 +194,7 @@ def generateAllCombinations(type_id):
     perms = set(permutations(type_id))
     return list(perms)
 
-def constructDataImage(perms, u_pix, flux_k2D, y_disperse, x_disperse):
+def constructDataImage10Stars(perms, u_pix, flux_k2D, y_disperse, x_disperse):
     """
     Function to construct an arbitary 'data image' that considers a possible spectral combinations of stars for the 10 star model
     """
@@ -217,6 +216,30 @@ def constructDataImage(perms, u_pix, flux_k2D, y_disperse, x_disperse):
     print('\nChoosing permutation no. %d out of total %d permutations'%(idx[0], len(perms)))
     return flux_matrix2D, idx[0]
 
+def constructDataImageNstars(template_dir, u_pix_arr, y_disperse, x_disperse, hot_stars, num_stars, mKs):
+    """
+    Function to construct an arbitary 'data image' that considers a possible spectral combinations of stars for the n star model
+    """
+    flux_matrix2D = np.zeros((u_pix_arr[1], u_pix_arr[0]))
+    
+    perm = np.load(template_dir+'%d_stars/%d_hot_stars/perm_arr.npy'%(num_stars, int(hot_stars*num_stars)))
+    
+    # choosing a random permutation number
+    idx = ss.generateRandInt(0, len(perm)-1, 1)
+    
+    # chose the flux arr for the given permutation      
+    flux_k2D = np.load(template_dir+'%d_stars/%d_hot_stars/flux_%dperm.npy'%(num_stars, hot_stars*num_stars, idx[0]))
+    
+    # multiplying the normalized flux by the flux of the star 
+    flux_k2D = [flux_k2D[idx]*(10**(7-0.4*mKs[idx])) for idx in range(len(mKs))]
+    
+    # construct the 2D matrix
+    flux_matrix2D = ss.construct2DFluxMatrix(flux_matrix2D, y_disperse, x_disperse, flux_k2D, u_pix_arr)
+
+    # add psf and noise
+    #flux_matrix2D = ss.addNoise(flux_matrix2D, u_pix_arr)  
+    return flux_matrix2D, idx[0]
+
 def countHotStars(perms_arr):
     """
     Function to count the number of hot stars in the given template configuration
@@ -230,7 +253,7 @@ def countHotStars(perms_arr):
             count_stars += 1
     return count_stars
 
-def constructSpectralTemplates(u_pix, y_disperse, x_disperse, type_id, flux_k2D):
+def constructSpectralTemplates10Stars(u_pix, y_disperse, x_disperse, type_id, flux_k2D):
     """
     Function to construct templates that consider all possible spectral combinations of stars
     @u_pix :: max pixels in FOV
@@ -262,6 +285,29 @@ def constructSpectralTemplates(u_pix, y_disperse, x_disperse, type_id, flux_k2D)
         np.save('Data/Template_library_10_stars/hot_stars%d/fluxMat_%dstar_%dpermNo.npy'%(num_hot_stars, len(x_disperse), i), flux_matrix2D)
         np.save('Data/Template_library_10_stars/hot_stars%d/perm_arr.npy'%num_hot_stars, perms)    
     return perms
+
+def constructSpectralTemplatesNstars(u_pix, y_disperse, x_disperse, type_id, flux_k2D):
+    """
+    Function to construct templates that consider all possible spectral combinations of stars
+    @u_pix :: max pixels in FOV
+    @xy_disperse :: row indicies on the grid i.e. the spectrum following the star
+    @type_id :: array storing information about the type of star i.e T_eff = 12,000 K is given a type id of 0, so all stars of the same type are given a similar id number
+    @flux_k2D :: k band flux for each star type considered
+    
+    Returns ::
+    @perms :: 2darray with all possible permutations of stars for the given population distribution 
+    """
+    # array generates all possible realizations of stars with spectra    
+    perms = np.load('Data/Template_library/%d_stars/%d_hot_stars/perm_arr.npy')
+    
+    for i in range(len(perms)):
+        flux_matrix2D = np.zeros((u_pix, u_pix))
+        
+        # reorder the flux arr for the given permutation
+        flux_k2D_temp = flux_k2D[np.array(perms[i])]
+                
+        np.save('Data/Template_library/%d_stars/%d_hot_stars/flux_%dperm.npy'%(num_hot_stars, len(x_disperse), i), flux_matrix2D)           
+    return 
 
 def splitFOVtoGrid(flux_matrix2D, num_splits):
     """
