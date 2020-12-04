@@ -176,7 +176,6 @@ def resamplingSpectra(arr_x, values, disperse_range, statistic_type):
     @arr_x :: array that is binned
     @values :: values on which the statistic will be computed (same shape as arr_x).
     """
-    bins = np.linspace(0, 1, disperse_range)
     bin_means,_,_ = stats.binned_statistic(arr_x, values, statistic=statistic_type, bins=disperse_range)
     return bin_means
 
@@ -282,7 +281,7 @@ def checkIfInsideFOV(col, row, u_pix):
         if np.any(row>u_pix[1]-1):
             row = row[row<u_pix[1]]
             col = col[0:len(row)]
-            edge_cutter = len(row)
+            edge_cutter = len(col)
             
     return col, row, edge_cutter
 
@@ -332,7 +331,7 @@ def addNoise(flux_2Dmat, u_pix):
         noise_matrix2D = np.random.poisson(lam=flux_2Dmat, size=shape)
         
     if isinstance(u_pix, (list, tuple, np.ndarray)):
-        shape=(u_pix[0], u_pix[1])
+        shape=(u_pix[1], u_pix[0])
         noise_matrix2D = np.random.poisson(lam=flux_2Dmat, size=shape)
     return noise_matrix2D
 """
@@ -445,7 +444,15 @@ def constructFluxMatrixPSF(x_pos, x_disperse, y_dispersePSF, flux_k2D, u_pix):
     @Returns :: flux_LSF2D :: 2D array holding all the flux values
     """
     print('\n\nCreating 2D flux matrix...\n')
-    flux_matrix2D = np.zeros((u_pix, u_pix))
+    # if FOV is a symmetric square
+    if isinstance(u_pix, (int, float)):
+        shape = (u_pix, u_pix)
+        flux_matrix2D = np.zeros((u_pix, u_pix))
+        
+    if isinstance(u_pix, (list, tuple, np.ndarray)): # if FOV is a rectangle
+        shape = (u_pix[1], u_pix[0])
+        flux_matrix2D = np.zeros((u_pix[1], u_pix[0]))    
+    
     for i in range(len(x_pos)):        
         # for every wavelength/point in the spectrum 
         for idx in range(len(x_disperse[0])):
@@ -456,7 +463,7 @@ def constructFluxMatrixPSF(x_pos, x_disperse, y_dispersePSF, flux_k2D, u_pix):
             col, row, edge_cutter = checkIfInsideFOV(col, row, u_pix)  
 
             # csr_matrix from scipy puts together a 2D matrix with the desired info
-            flux_matrix2D += csr_matrix((flux_k2D[i][idx][0:edge_cutter], (row, col)), shape=(u_pix, u_pix)).toarray()
+            flux_matrix2D += csr_matrix((flux_k2D[i][idx][0:edge_cutter], (row, col)), shape=shape).toarray()
             
         # shows a progress bar during computations        
         showProgress(i, len(x_pos))        

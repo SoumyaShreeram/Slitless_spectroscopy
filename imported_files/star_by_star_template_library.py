@@ -58,20 +58,20 @@ def findStarAndNeighbours(x_pos, y_pos, mag_H, mag_Ks, disperse_range, width, se
     """
     star_neighbours_in, num_neighbours_in = [], []
     star_neighbours_out, num_neighbours_out = [], []
-    x_start = start_point[0]
+    x_start, y_start = start_point[0], start_point[1]
     
-    for idx in range(len(mag_Ks)):
+    limits_FOV = [x_start, x_start+u_pix, y_start, y_start+u_pix]
+    x_FOV, y_FOV, mH_FOV, mKs_FOV = ssfm.selectFOV(limits_FOV, x_pos, y_pos, mag_H, mag_Ks, print_msg=False)
+
+    for idx in range(len(mH_FOV)):
         # limits to define the neighbours of a star
-        limits = [x_start, x_pos[idx]+disperse_range, y_pos[idx]-width/2, y_pos[idx]+width/2]
+        limits_neighbours = [x_FOV[idx]-disperse_range, x_FOV[idx]+disperse_range, y_FOV[idx]-width/2, y_FOV[idx]+width/2]
         
-        # within FOV
-        x, y, mKs, mH = ssfm.selectFOV(limits, x_pos, y_pos, mag_H, mag_Ks, print_msg=False)
-                
-        # influencing stars outside FOV
-        x_pos_full, y_pos_full, mag_Ks_full, mag_H_full = selected_c_pxls[0], selected_c_pxls[1], selected_c_pxls[2], selected_c_pxls[3]
-        
+        # FOV
+        x, y, mKs, mH = ssfm.selectFOV(limits_neighbours, x_FOV, y_FOV, mH_FOV, mKs_FOV, print_msg=False)     
+               
         # the inside+outside stars that are influencing from theFOV
-        x_out, y_out, mKs_out, mH_out  = ssfm.selectFOV(limits, x_pos_full, y_pos_full, mag_Ks_full, mag_H_full, print_msg=False)
+        x_out, y_out, mKs_out, mH_out  = ssfm.selectFOV(limits_neighbours, x_pos, y_pos, mag_H, mag_Ks, print_msg=False)
         
         # save positions and mag info of the stars in and out of the FOV
         star_neighbours_in.append([x, y, mKs, mH])        
@@ -81,7 +81,7 @@ def findStarAndNeighbours(x_pos, y_pos, mag_H, mag_Ks, disperse_range, width, se
         num_neighbours_in.append(len(mKs))
         num_neighbours_out.append(len(mKs_out))
         
-    return [star_neighbours_in, star_neighbours_out], [num_neighbours_in, num_neighbours_out]
+    return [star_neighbours_in, star_neighbours_out], [num_neighbours_in, num_neighbours_out], x_FOV, y_FOV
 
 def generateDirToSavePerms(template_dir, num_stars, hot_stars):
     """
@@ -96,6 +96,16 @@ def generateDirToSavePerms(template_dir, num_stars, hot_stars):
     
     if os.path.exists(folder0) and not os.path.exists(folder1):            
             os.mkdir(folder1)       
+    return
+
+def generateDirToSaveDataCrops(save_dir, num_stars):
+    """
+    Function automatically makes the directory to save all the files
+    """
+    folder0 = os.path.join(save_dir,'%d_stars'%num_stars)
+    
+    if not os.path.exists(folder0):
+        os.mkdir(folder0)       
     return
 
 def generateSaveTemplates(type_id, flux_LSF2D, flux_k2D, template_dir, num_stars, hot_stars):
@@ -126,7 +136,7 @@ def generateSaveTemplates(type_id, flux_LSF2D, flux_k2D, template_dir, num_stars
     np.save(template_dir+'%d_stars/%d_hot_stars/perm_arr.npy'%(num_stars, hot_stars*num_stars), list(perms))    
     return
 
-def starsOutsideFOV(star_neighbours, x_pos, y_pos, mag_H, mag_Ks, foreground_cutoff, start_points, u_pix, selected_c_pxls):
+def starsOutsideFOV(star_neighbours):
     """
     Function to associate spectra to stars outside the selected FOV that yet influences the concerned stars
     @hot_stars_out :: variable to set the hot star popultation outside the FOV
@@ -146,15 +156,6 @@ def starsOutsideFOV(star_neighbours, x_pos, y_pos, mag_H, mag_Ks, foreground_cut
     
     return [x_pos_out, y_pos_out, x_pos_out_added, y_pos_out_added, mag_H_out, mag_Ks_out]
 
-def defineEffectiveFoV(stars_outside_FOV, x_start, u_pix):
-    """
-    Function defines the edges of the FOV
-    """
-    left_edge = x_start - np.min(stars_outside_FOV[2])
-    right_edge = np.max(stars_outside_FOV[2])-x_start-u_pix
-    
-    effective_width = left_edge + u_pix + right_edge
-    return int(effective_width), u_pix
 
 def dispersionWithNstars(total_stars_FOV_params, u_pix_arr, waves_k, disperse_range, dispersion_angle, create_dispersed_files):
     """

@@ -67,16 +67,17 @@ def dataMatrix10StarsCase(template_dir, hot_stars, num_stars, u_pix, l_pix, x_po
     
     # division of stars chosen in FOV, considering 10 temperatures with 10 log g's
     stars_divide = ssfm.decideNumHotStars(hot_stars=hot_stars)
-    x_disperse, y_disperse = pt.plotDispersedStars(x_pos, y_pos, l_pix, u_pix, \
-                                               disperse_range, waves_k, \
-                                               dispersion_angle)
+    
+    fig, ax = plt.subplots(1,1,figsize=(9,8))
+    x_disperse, y_disperse = pt.plotDispersedStars(ax, x_pos, y_pos, disperse_range, waves_k, \
+                                               dispersion_angle, no_plot=False)
     
     flux_k2D, type_id = ssfm.associateSpectraToStars(waves_k, stars_divide, num_stars, \
                                       flux_LSF2D, params)
 
     # generate all possible permutations that exist for the given distribution of stars
     if templates_exist:
-        perms_arr = ssfm.constructSpectralTemplates(u_pix, y_disperse, x_disperse, \
+        perms_arr = ssfm.constructSpectralTemplates10Stars(u_pix, y_disperse, x_disperse, \
                                                     type_id, flux_k2D)
 
     # building a data image that considers all possible (distinguishable) permuations
@@ -85,12 +86,38 @@ def dataMatrix10StarsCase(template_dir, hot_stars, num_stars, u_pix, l_pix, x_po
                                             y_disperse, x_disperse)
     return data_LSF_2Dmat, perm_no
 
-def dataMatrixNStarsCase(hot_stars, num_stars, u_pix_arr, x, y, mKs, disperse_range, dispersion_angle):
+def limitsForCroppingMatrix(x_FOV, y_FOV, disperse_range, width, idx):
+    """
+    Function to set the dimensions for cropping the flux matrix
+    @x_FOV, y_FOV ::
+    @disperse_range ::
+    @width ::
+    @idx ::
+    """
+    if x_FOV[idx]-disperse_range < 0:
+        x_limit_start = 0
+    else:
+        x_limit_start = x_FOV[idx]-disperse_range
+    
+    limits = [x_limit_start, x_FOV[idx]+disperse_range, y_FOV[idx]-width/2, y_FOV[idx]+width/2]
+    return limits
+
+
+def cropMat(limits, X, Y, flux_mat):
+    """
+    Function to crop the matrix given the limits, X, Y pixel arrays and flux_mat (2D)
+    """
+    select_idx_x = np.where((X>limits[0]) & (X<limits[1]))
+    select_idx_y = np.where((Y>limits[2]) & (Y<limits[3]))
+    
+    flux_mat = flux_mat[select_idx_y[0],:]
+    flux_mat = flux_mat[:, select_idx_x[0]]
+    return flux_mat
+
+def cropDataMatrixNStarsCase(disperse_range, width, idx, x_FOV, y_FOV, u_pix_arr):
     """
     Function to build a data matrix from the template library for a given distribution of stars
-    @template_dir :: directory where the templates are stored
-    @hot_stars :: percent of hot stars in the FOV
-    @num_stars :: number of stars in the FOV
+    @disperse_range :: directory where the templates are stored
     @l_pix, u_pix :: lower and upper limit in pixels defining the FOV
     @x_pos, y_pos :: the x and y position of the star  
     @disperse_range :: range of wavelength in pixels chosen for dispersion
@@ -100,21 +127,24 @@ def dataMatrixNStarsCase(hot_stars, num_stars, u_pix_arr, x, y, mKs, disperse_ra
     Returns ::
     @data_LSF_2Dmat :: 2darray containing the so-called data
     """
-    # Load the 10 random spectra with added LSF, which can be associated with the stars in the FOV.
-    flux_LSF2D, params = np.load('Data/flux_K2D_LSF_norm.npy'), np.load('Data/params.npy')
-    waves_k = np.load('Data/waves_k.npy')
-          
-    # division of stars chosen in FOV, considering 10 temperatures with 10 log g's
-    stars_divide = ssfm.decideNumHotStars(hot_stars=hot_stars)
-    x_disperse, y_disperse = pt.plotDispersedStars('', x, y, disperse_range, waves_k, dispersion_angle, no_plot=True)
-    print(np.any(x_disperse == 0))
-    # building a data image that considers ONE of the all possible (distinguishable) permuations
-    template_dir = 'Data/Template_library/'       
-    data_LSF_2Dmat, perm_no  = ssfm.constructDataImageNstars(template_dir, u_pix_arr, y_disperse, x_disperse, hot_stars, num_stars, mKs)
-    return data_LSF_2Dmat, perm_no
+    # Load the data matrix
+    flux_mat = np.load('Data/Many_star_model/flux_LSF_PSF_matrix2D.npy') 
+    flux_PSF_mat = np.load('Data/Many_star_model/flux_PSF_matrix2D.npy')
+    
+    X, Y = np.linspace(0, u_pix_arr[0], u_pix_arr[0]), np.linspace(0, u_pix_arr[1], u_pix_arr[1])
+    
+    # define the limits of the region to be cropped
+    limits = limitsForCroppingMatrix(x_FOV, y_FOV, disperse_range, width, idx)
+        
+    # selecting the y-band    
+    select_idx_x = np.where((X>limits[0]) & (X<limits[1]))
+    select_idx_y = np.where((Y>limits[2]) & (Y<limits[3]))
 
+    flux_mat = cropMat(limits, X, Y, flux_mat)
+    flux_PSF_mat = cropMat(limits, X, Y, flux_PSF_mat)
+    return flux_mat, flux_PSF_mat, limits
 
-def fitTemplateLibrary(template_dir, hot_stars_arr, num_stars, data_LSF_2Dmat, num_splits, u_pix):
+def fitTemplateLibrary10Stars(template_dir, hot_stars_arr, num_stars, data_LSF_2Dmat, num_splits, u_pix):
     """
     Function to test all possible permutations for all configurations (stellar populations) of hot stars to the data image
     @template_dir :: directory where the templates are stored
@@ -135,7 +165,102 @@ def fitTemplateLibrary(template_dir, hot_stars_arr, num_stars, data_LSF_2Dmat, n
         perms_arr = np.load(template_dir+'hot_stars%d/perm_arr.npy'%(stars*num_stars))
     
         # cal the chi-squared and the minimum chi-squared configuration
-        chi_squared_arr = ssfm.determineBestFit(u_pix, num_stars, perms_arr, \
-                                                data_vals_2Darr, num_splits)
+        chi_squared_arr = ssfm.determineBestFit10Stars(u_pix, num_stars, perms_arr, data_vals_2Darr, num_splits, many_stars=False)
         chi_square3D.append(chi_squared_arr)            
     return chi_square3D
+
+def reduceMatrixResolutions(data_mat, limits, num_splits):
+    """
+    Function to reduce the resolution of the matrix for minimization
+    @data_mat :: the 2D matrix
+    @limits :: limits of the matrix in the defined FoV
+    """
+    data_mat_grid = np.zeros((0, int(data_mat.shape[1]/5)))
+    arr_x = np.linspace(limits[0], limits[1], int(data_mat.shape[1]))
+
+    for i in range(data_mat.shape[0]):
+        # split the 'splited flux matrix' further, but this time by columns
+        binned_sums = ss.resamplingSpectra(arr_x, data_mat[i], int(data_mat.shape[1]/num_splits), 'sum')
+        
+        # store the sum of these vals 
+        data_mat_grid = np.append(data_mat_grid, [binned_sums], axis=0)
+    arr_x_new = np.linspace(limits[0], limits[1], int(data_mat.shape[1]/num_splits))
+    return data_mat_grid, arr_x_new
+
+def generateTemplatesCalChiSquare(x, y, mKs, template_dir, save_data_psf_crop_dir, n_stars, hot_stars, perms, disperse_range, dispersion_angle, u_pix_arr, limits, data_mat_arr, i, x_FOV, num_splits):
+    """
+    IMPORTANT: Function to generate and fit templates 
+    """
+    data_mat_grid, data_mat, data_PSF_mat = data_mat_arr[0], data_mat_arr[1], data_mat_arr[2]
+    chi_squared = []
+
+    for perm_idx in range(len(perms)): 
+        diff_vals = 0
+        flux_mat = ssfm.loadGenerateTemplates(template_dir, save_data_psf_crop_dir, n_stars, hot_stars,\
+                                              [x, y, mKs], perm_idx, disperse_range, dispersion_angle, \
+                                              u_pix_arr, limits)
+
+        X_grid, Y_grid = np.linspace(0, u_pix_arr[0], u_pix_arr[0]), np.linspace(0, u_pix_arr[1], u_pix_arr[1])
+        flux_mat_cropped = cropMat(limits, X_grid, Y_grid, flux_mat)
+        flux_template = ss.addNoise(data_PSF_mat+flux_mat_cropped, [data_mat.shape[1], data_mat.shape[0]])
+        
+        # reduce the dimensions of the matrix to cal. the minimizing statistic
+        flux_template_grid, arr_x = reduceMatrixResolutions(flux_template, limits, num_splits)
+        
+        
+        # calculate statistic betweek 'data image and template image'
+        for row in range(flux_template_grid.shape[0]):
+            
+            # calculate the chi-squared for the region to the right of the star only
+            for col in np.where(arr_x > x_FOV)[0]:
+                model = flux_template_grid[row][col]
+                data = data_mat_grid[row][col]
+                diff_vals += (model-data)**2
+                
+        # cal the final chi-sq statistic for each template and find the minimum
+        chi_squared.append(np.sum(diff_vals))
+    min_idx = np.where(chi_squared == np.min(chi_squared))[0][0]
+    return np.min(chi_squared), min_idx
+
+def loadDataReduceResolution(n_stars, i, num_splits, limits, save_data_crop_dir, save_data_psf_crop_dir):
+    """
+    """
+    # load PSF matrix and data matrix for the region for the given number of neighbours
+    data_mat = np.load(save_data_crop_dir + '%d_stars/data_mat_%d.npy'%(n_stars, i))
+    data_PSF_mat = np.load(save_data_psf_crop_dir + '%d_stars/data_mat_PSF_%d.npy'%(n_stars, i))
+        
+    # reduce the dimensions of the matrix to cal. the minimizing statistic
+    data_mat_grid, x_pixels = reduceMatrixResolutions(data_mat, limits[i], num_splits)
+    return data_mat_grid, data_mat, data_PSF_mat 
+
+def recoverBestTemplatePermutation(resulting_params_all, hot_stars_arr, i, n_stars, best_fit_perms_2D, template_dir, plot_chi_sqs):
+    """
+    Function 
+    """
+    resulting_params = resulting_params_all[i]
+
+    # extracting the chi-square and best indicies
+    chi_squares = [resulting_params[i][0] for i in range(len(hot_stars_arr))]
+    all_template_nos = [resulting_params[i][1] for i in range(len(hot_stars_arr))]
+
+    # normalizing chi-square, the min chi-sq index, and the best template number
+    chi_squares_norm = chi_squares/np.max(chi_squares)
+    best_idx = np.where(chi_squares == np.min(chi_squares))[0]    
+    template_no = np.array(all_template_nos)[best_idx]
+
+    # get the perm arr for the best hot-star distribution
+    hot_stars = hot_stars_arr[best_idx]*n_stars
+    print(n_stars, hot_stars[0])
+    best_fit_perm = np.load(template_dir+ '%d_stars/%d_hot_stars/perm_arr.npy'%(n_stars, hot_stars[0]))
+    print(np.shape(best_fit_perm))
+    best_fit_perm = best_fit_perm[template_no.astype(int)]
+    
+    
+    # save all the best perms for every region
+    best_fit_perms_2D = np.append(best_fit_perms_2D, [np.array(best_fit_perm[0])], axis=0)
+
+    if plot_chi_sqs:
+        fig, ax = plt.subplots(1,1, figsize=(9, 8))
+        ax.plot(hot_stars_arr,  chi_squares_norm, label='Region %d'%i)
+        ax.plot(hot_stars_arr[best_idx],  np.min(chi_squares_norm), "r*")    
+    return ax, best_fit_perms_2D

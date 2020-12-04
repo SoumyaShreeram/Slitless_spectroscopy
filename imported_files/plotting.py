@@ -37,6 +37,7 @@ import matplotlib
 
 # personal file imports
 import Simulating_Spectra as ss
+import Fitting_and_pdfs as fap
 
 """### 1. Functions for labeling plots
 """
@@ -267,7 +268,7 @@ def plotAllNeighbours(x_pos, num_neighbours, neighbours_outside_FOV, total_neigh
     setLabel(ax[1], 'Star number', 'Total Neighbouring stars', '', 'default', 'default', legend=False)
     return 
 
-def visualizingNeighbours(idx, x_pos, y_pos, star_neighbours):
+def visualizingNeighbours(idx, x_pos, y_pos, x_FOV, y_FOV, star_neighbours):
     """
     Function to visualize which stars form neighbours to a given star
     @idx :: index to choose a random star
@@ -278,14 +279,17 @@ def visualizingNeighbours(idx, x_pos, y_pos, star_neighbours):
     
     # plotting all the stars in the FOV
     ax.plot(x_pos, y_pos, '.', color="grey")
+        
+    # plotting all the neighbours outside FOV to the star of interest
+    ax.plot(star_neighbours[1][idx][0], star_neighbours[1][idx][1], 'o', color="#34ebc6", markersize=12, label='All neighbours')
     
-    # plotting all the neighbours to the star of interest
-    ax.plot(star_neighbours[0][idx][0], star_neighbours[0][idx][1], "b*")
+    # plotting all the neighbours inside FOV to the star of interest
+    ax.plot(star_neighbours[0][idx][0], star_neighbours[0][idx][1], "b*", label='Neighbours within defined FoV')
     
     # the star of interest itself
-    ax.plot(x_pos[idx], y_pos[idx], 'r*', markersize=15)
+    ax.plot(x_FOV[idx], y_FOV[idx], 'r*', markersize=15, label='Star of concern')
     
-    setLabel(ax, 'x-position (pixels)', 'y-position (pixels)', '', 'default', 'default', legend=False)
+    setLabel(ax, 'x-position (pixels)', 'y-position (pixels)', '', 'default', 'default', legend=True)
     
     # printing the results
     print('Number of neighbouring stars in FOV:', len(star_neighbours[0][idx][0]))
@@ -328,12 +332,12 @@ def showTheRegionOfAnalysis(selected_c_pxls, stars_outside_FOV, x_start, y_start
                      facecolor='None', zorder=10, label='FOV')
     
     # left Rectangle patch    
-    rect_left = Rectangle((np.min(stars_outside_FOV[2]), y_start), \
-                          x_start-np.min(stars_outside_FOV[2]),u_pix,linewidth=1,edgecolor='r', \
+    rect_left = Rectangle((np.min(stars_outside_FOV[0]), y_start), \
+                          x_start-np.min(stars_outside_FOV[0]),u_pix,linewidth=1,edgecolor='r', \
                           facecolor='None', zorder=10, hatch='/')
     
     # right Rectangle patch
-    rect_right = Rectangle((x_start+u_pix, y_start), np.max(stars_outside_FOV[2])-x_start-u_pix,u_pix,linewidth=1,edgecolor='r', facecolor='None', zorder=10, hatch='/', label='Outside defined FOV')
+    rect_right = Rectangle((x_start+u_pix, y_start), np.max(stars_outside_FOV[0])-x_start-u_pix,u_pix,linewidth=1,edgecolor='r', facecolor='None', zorder=10, hatch='/', label='Outside defined FOV')
 
     # add the patch to the Axes
     ax.add_patch(rect)
@@ -343,3 +347,68 @@ def showTheRegionOfAnalysis(selected_c_pxls, stars_outside_FOV, x_start, y_start
     # set labels
     setLabel(ax, 'x-axis position', 'y-axis position', 'Region considered for the analysis', 'default', 'default', legend=True)
     return
+
+def plotFluxMatAroundAstar(x_FOV, y_FOV, total_neighbours, disperse_range, width, u_pix_arr, n_stars, region_idx):
+    """
+    Function to plot a cropped region of the data matrix 
+    @x_FOV, y_FOV :: arrays with x-y coordinates of stars in the defined FoV
+    @total_neighbours :: arr that holds information about the total number of neighbours for every star in the FoV
+    @disperse_range, width :: params to define the region of influence for each star
+    @u_pix_arr :: breath and width of the effective FoV
+    @n_stars :: the number of neighbours the star will have
+    @region_idx :: of the arr containing info about all regions with stars containing #n_star neighbours, we choose one region
+    """
+    # gets all the indicies of the stars in the FOV with n neighbours
+    stars_with_n_neighbours = np.where(total_neighbours == n_stars)
+    
+    # check to make sure input is not outside range
+    if region_idx >= len(stars_with_n_neighbours[0]):
+        print('This file does not exist')
+    else:
+        fig, ax = plt.subplots(2,1, figsize=(11, 11), gridspec_kw={'height_ratios': [10, 5]})
+        
+        # plotting the entire data matrix
+        flux_mat_full = np.load('Data/Many_star_model/flux_LSF_PSF_matrix2D.npy') 
+        X, Y = np.linspace(0, u_pix_arr[0], u_pix_arr[0]), np.linspace(0, u_pix_arr[1], u_pix_arr[1])
+        plot0 = ax[0].contourf(X, Y, flux_mat_full, cmap='YlGnBu')
+        cbar = plt.colorbar(plot0, aspect=10, ax=ax[0]);
+        
+        # plot the star of concern
+        ax[0].plot(x_FOV[stars_with_n_neighbours[0][region_idx]], y_FOV[stars_with_n_neighbours[0][region_idx]], 'k*', markersize=15)
+        ax[1].plot(x_FOV[stars_with_n_neighbours[0][region_idx]], y_FOV[stars_with_n_neighbours[0][region_idx]], 'k*', markersize=15) 
+        
+        # plotting the cropped patch in the FoV of the data matrix
+        limits = fap.limitsForCroppingMatrix(x_FOV, y_FOV, disperse_range, width, stars_with_n_neighbours[0][region_idx])        
+        rect = Rectangle((limits[0], limits[2]), limits[1]-limits[0], limits[3]-limits[2],linewidth=1,edgecolor='r',\
+                     facecolor='None', zorder=10, label='FOV')
+        ax[0].add_patch(rect)
+        setLabel(ax[0], '', 'y-axis position', 'Crop of a region with %d stars'%n_stars, 'default', 'default', legend=False)
+        
+        # zoom in plot of the cropped matrix
+        save_data_crop_dir = 'Data/Cropped_Data_Images/'        
+        flux_mat = np.load(save_data_crop_dir + '%d_stars/data_mat_%d.npy'%(n_stars, region_idx))        
+        X_grid, Y_grid = np.meshgrid(np.linspace(limits[0], limits[1], len(flux_mat[0, :])), np.linspace(limits[2], limits[3], len(flux_mat[:, 0])))               
+        plot1 = ax[1].contourf(X_grid, Y_grid, flux_mat, cmap='Blues')
+        
+        # labeling and setting colorbar
+        setLabel(ax[1], 'x-axis position', 'y-axis position', '', 'default', 'default', legend=False)
+        cbar = plt.colorbar(plot1, aspect=10, ax=ax[1]);
+    return
+
+def plotSubRegion(limits, flux_mat, title, x_label, cmaps):
+    """
+    Function to plot sub regions of the field of view
+    @limits :: limits of the matrix in the defined FoV
+    @flux_mat :: the 2D flux matrix that needs to be plotted
+    @title, x_label :: axis properties for the plot
+    @cmaps :: colors of the contour for the plot
+    """
+    fig, ax = plt.subplots(1,1, figsize=(11, 4))
+    X_grid, Y_grid = np.meshgrid(np.linspace(limits[0], limits[1], len(flux_mat[0, :])), np.linspace(limits[2], limits[3], len(flux_mat[:, 0])))               
+
+    plot1 = ax.contourf(X_grid, Y_grid, flux_mat, cmap=cmaps)
+
+    # labeling and setting colorbar
+    pt.setLabel(ax, x_label, 'y-axis position (pixels)', title, 'default', 'default', legend=False)
+    cbar = plt.colorbar(plot1, aspect=10);
+    return 
