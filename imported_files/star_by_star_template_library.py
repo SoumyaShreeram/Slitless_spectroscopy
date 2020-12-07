@@ -83,6 +83,20 @@ def findStarAndNeighbours(x_pos, y_pos, mag_H, mag_Ks, disperse_range, width, se
         
     return [star_neighbours_in, star_neighbours_out], [num_neighbours_in, num_neighbours_out], x_FOV, y_FOV
 
+def recordStellarTypesOfARegion(x_in, y_in, x_pos, y_pos, type_id, x_FOV, y_FOV, stars_idx):
+    """
+    Function to record the stellar types of stars within the defined FoV
+    """
+    select_idx = []
+    # select desired region
+    for i in range(len(x_in)):
+        counts = np.where((x_pos == x_in[i]) & (y_pos == y_in[i]))
+        select_idx.append(counts[0][0])
+       
+    target_star = np.where((x_pos == x_FOV[stars_idx]) & (y_pos == y_FOV[stars_idx]))
+    target_star_idx = np.where((x_in == x_FOV[stars_idx]) & (y_in == y_FOV[stars_idx]))
+    return type_id[select_idx], type_id[target_star], target_star_idx[0]
+
 def generateDirToSavePerms(template_dir, num_stars, hot_stars):
     """
     Function automatically makes the directory to save all the files
@@ -192,9 +206,65 @@ def dispersionWithNstars(total_stars_FOV_params, u_pix_arr, waves_k, disperse_ra
     return x_disperse, y_disperse
 
 
+def findStellarTypesDataStars(n_stars, hot_stars_arr, stars_with_n_neighbours, star_neighbours, x_pos, y_pos, x_FOV, y_FOV):
+    """
+    Function to find the stellar types of the region from the data image
+    @
+    @
+    @
+    """
+    type_id = np.load('Data/Many_star_model/type_id_shuffled.npy')
+    stellar_types_data_arr = np.zeros((0, len(hot_stars_arr))) 
+    target_star_type = []
+    target_star_idx = []
+    for i, stars_idx in enumerate(stars_with_n_neighbours[0]):
+        x, y, mKs = star_neighbours[1][stars_idx][0], star_neighbours[1][stars_idx][1], star_neighbours[1][stars_idx][3]
 
-def addPSFtoStarsOutsideFOV():
-    """
-    Function to add PSF to all stars outside the FOV
-    """
-    return 
+        # index 0 holds info about all the stellar types in the FoV, index 1 hold info about the target star type
+        stellar_types_data = recordStellarTypesOfARegion(x, y, x_pos, y_pos, type_id, x_FOV, y_FOV, stars_idx)
+
+        # at each iteration saves info about the stellar types of the region 
+        stellar_types_data_arr = np.append(stellar_types_data_arr, [stellar_types_data[0]], axis=0)
+        target_star_type.append(stellar_types_data[1][0])
+        target_star_idx.append(stellar_types_data[2][0])
+
+    target_star_info = [target_star_type, target_star_idx]
+    np.save('Data/Cropped_Data_Images/%d_stars/stellar_types_region_info.npy'%n_stars, stellar_types_data_arr, target_star_type)
+    np.save('Data/Cropped_Data_Images/%d_stars/stellar_types_target_star_info.npy'%n_stars, stellar_types_data_arr, target_star_info)
+    return stellar_types_data_arr, target_star_type, target_star_idx
+
+
+def countHotStars(target_star_prediction):
+    count_hot_stars = 0
+    for m in range(len(target_star_prediction)):
+        if target_star_prediction[m] == 0:
+            count_hot_stars += 1
+    return count_hot_stars
+
+def findTemplateNumber(template_dir, selected_temps, resulting_params_all, hot_stars_arr, n_stars, region_idx):
+    len_pems, template_nos = [], []
+    best_fit_perm_all = np.zeros((0, n_stars))
+    
+    for i, hot_stars in enumerate(hot_stars_arr):
+        
+        len_pems.append(len(resulting_params_all[region_idx][i]))
+        
+        # for the first case            
+        if i == 0: 
+            if np.any(selected_temps[0]<len_pems[-1]):
+                # get the template nos
+                chosen_vals = selected_temps[selected_temps[0]<len_pems[-1]]
+                template_nos.append(chosen_vals)
+        # for all other cases
+        else:
+            if np.any((selected_temps[0]>np.sum(len_pems[-2])) & (selected_temps[0]<np.sum(len_pems[-1]))):
+                
+                chosen_vals = np.where((selected_temps[0]>np.sum(len_pems[-2])) & (selected_temps[0]<np.sum(len_pems[-1])))
+                normalize_temps = np.array(selected_temps[0])[chosen_vals]-np.sum(len_pems[-2])
+                template_nos.append(normalize_temps)
+                
+                # get the perm arr for the best hot-star distribution
+                best_fit_perm = np.load(template_dir+ '%d_stars/%d_hot_stars/perm_arr.npy'%(n_stars, hot_stars*n_stars))
+                best_fit_perm = best_fit_perm[normalize_temps.astype(int)]
+                best_fit_perm_all = np.append(best_fit_perm_all, best_fit_perm, axis=0)
+    return best_fit_perm_all

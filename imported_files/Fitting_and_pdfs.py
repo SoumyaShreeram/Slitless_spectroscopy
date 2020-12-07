@@ -220,7 +220,7 @@ def generateTemplatesCalChiSquare(x, y, mKs, template_dir, save_data_psf_crop_di
         # cal the final chi-sq statistic for each template and find the minimum
         chi_squared.append(np.sum(diff_vals))
     min_idx = np.where(chi_squared == np.min(chi_squared))[0][0]
-    return np.min(chi_squared), min_idx
+    return chi_squared, np.min(chi_squared), min_idx
 
 def loadDataReduceResolution(n_stars, i, num_splits, limits, save_data_crop_dir, save_data_psf_crop_dir):
     """
@@ -250,11 +250,9 @@ def recoverBestTemplatePermutation(resulting_params_all, hot_stars_arr, i, n_sta
 
     # get the perm arr for the best hot-star distribution
     hot_stars = hot_stars_arr[best_idx]*n_stars
-    print(n_stars, hot_stars[0])
-    best_fit_perm = np.load(template_dir+ '%d_stars/%d_hot_stars/perm_arr.npy'%(n_stars, hot_stars[0]))
-    print(np.shape(best_fit_perm))
-    best_fit_perm = best_fit_perm[template_no.astype(int)]
     
+    best_fit_perm = np.load(template_dir+ '%d_stars/%d_hot_stars/perm_arr.npy'%(n_stars, hot_stars[0]))
+    best_fit_perm = best_fit_perm[template_no.astype(int)]
     
     # save all the best perms for every region
     best_fit_perms_2D = np.append(best_fit_perms_2D, [np.array(best_fit_perm[0])], axis=0)
@@ -262,5 +260,58 @@ def recoverBestTemplatePermutation(resulting_params_all, hot_stars_arr, i, n_sta
     if plot_chi_sqs:
         fig, ax = plt.subplots(1,1, figsize=(9, 8))
         ax.plot(hot_stars_arr,  chi_squares_norm, label='Region %d'%i)
-        ax.plot(hot_stars_arr[best_idx],  np.min(chi_squares_norm), "r*")    
+        ax.plot(hot_stars_arr[best_idx],  np.min(chi_squares_norm), "r*") 
+    ax = None
+    return ax, best_fit_perms_2D
+
+def analyzeAllChiSqs(resulting_params_all, star_idx, plot_fig):
+    """
+    Function to evaluate chi-sqs and define the cut for analysis
+    """
+    region_one_chi_sqs = np.concatenate(resulting_params_all[star_idx])
+    norm_chi_sqs = region_one_chi_sqs/np.max(region_one_chi_sqs)
+
+    num_perms = np.arange(len(region_one_chi_sqs))
+
+    if plot_fig:
+        fig, ax = plt.subplots(1,1,figsize=(9,8))
+        # TODO: plot the colors for different hot star distributions to be different
+        ax.plot(num_perms, norm_chi_sqs, 'b.')
+
+    # define the chi-squre below which the templates are considered
+    define_cut = (np.max(norm_chi_sqs)-np.min(norm_chi_sqs))/4
+    chi_sq_cut = np.min(norm_chi_sqs) + define_cut 
+
+    if plot_fig:
+        ax.hlines(chi_sq_cut, np.min(num_perms), np.max(num_perms), colors='r')
+
+        pt.setLabel(ax, 'Template number', 'Chi-squares', '', 'default', \
+                    'default', legend=False)
+    return norm_chi_sqs, np.where(norm_chi_sqs < chi_sq_cut)
+
+def recoverBestTemplatePermutation(resulting_params_all, hot_stars_arr, i, n_stars, best_fit_perms_2D, template_dir, plot_chi_sqs):
+    """
+    Function 
+    """
+    resulting_params = resulting_params_all[i]    
+    # extracting the chi-square and best indicies
+    chi_squares = [resulting_params[i][0] for i in range(len(hot_stars_arr))]
+    all_template_nos = [resulting_params[i][1] for i in range(len(hot_stars_arr))]    
+    
+    # normalizing chi-square, the min chi-sq index, and the best template number
+    chi_squares_norm = chi_squares/np.max(chi_squares)
+    best_idx = np.where(chi_squares == np.min(chi_squares))[0]    
+    template_no = np.array(all_template_nos)[best_idx]    
+    
+    # get the perm arr for the best hot-star distribution
+    hot_stars = hot_stars_arr[best_idx]*n_stars    
+    best_fit_perm = np.load(template_dir+ '%d_stars/%d_hot_stars/perm_arr.npy'%(n_stars, hot_stars[0]))
+    best_fit_perm = best_fit_perm[template_no.astype(int)]    
+    
+    # save all the best perms for every region
+    best_fit_perms_2D = np.append(best_fit_perms_2D, [np.array(best_fit_perm[0])], axis=0)    if plot_chi_sqs:
+        fig, ax = plt.subplots(1,1, figsize=(9, 8))
+        ax.plot(hot_stars_arr,  chi_squares_norm, label='Region %d'%i)
+        ax.plot(hot_stars_arr[best_idx],  np.min(chi_squares_norm), "r*") 
+    ax = None
     return ax, best_fit_perms_2D

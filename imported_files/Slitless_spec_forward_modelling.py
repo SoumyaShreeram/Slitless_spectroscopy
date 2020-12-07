@@ -111,8 +111,7 @@ def cutOffFlux(cut_off_ll, x_pos, y_pos, mag_H, mag_Ks):
     Function cuts off stars below a certain flux from the bottom
     @x_pos, y_pos, mag :: x_pos, y_pos, and magnitude of stars in the H and Ks band
     @cut_off_ll :: cut-off limit on the magnitude (note: mag scale is -ve)
-    """
-    
+    """    
     select_idx = np.where(mag_Ks<cut_off_ll)
     print("Discarding stars with magnitude > %d."%cut_off_ll)
     return x_pos[select_idx], y_pos[select_idx], mag_H[select_idx], mag_Ks[select_idx]
@@ -141,7 +140,6 @@ def discardForegroundStars(x_pos, y_pos, mag_H, mag_Ks, foreground_cutoff):
     print('Discarding all the forground stars...')
     return x_pos[count], y_pos[count], mag_H[count], mag_Ks[count]
 
-
 def mapToFOVinPixels(x_pos, y_pos, u_pix):
     """
     Function to map the r.a. and declination positions into pixels 
@@ -156,6 +154,14 @@ def mapToFOVinPixels(x_pos, y_pos, u_pix):
         funcX = interp1d([np.min(np.abs(x_pos)), np.max(np.abs(x_pos))], [0, u_pix[0]-1])
         funcY = interp1d([np.min(y_pos), np.max(y_pos)],[0, u_pix[1]-1])        
     return funcX(np.abs(x_pos)), funcY(y_pos)
+
+def checkForTotalStarCount(star_percent, idx):
+    # TODO: add this to the stars divide function
+    if idx == 0:
+        star_percent = star_percent - 0.03
+    else: 
+        star_percent = star_percent + 0.03
+    return star_percent
 
 def associateSpectraToStars(waves_k, stars_divide, tot_stars, flux_LSF2D, params, print_msg):
     """
@@ -179,6 +185,10 @@ def associateSpectraToStars(waves_k, stars_divide, tot_stars, flux_LSF2D, params
     
     for idx, star_percent in enumerate(stars_divide):
         if star_percent*tot_stars != 0:
+            
+            if star_percent == 0.5 and (tot_stars-1)%2:               
+                star_percent = checkForTotalStarCount(star_percent, idx)
+            
             for i in range(int(star_percent*tot_stars)):
                 # keep track of the type of the star
                 type_id.append(label_arr[idx])
@@ -195,6 +205,16 @@ def associateSpectraToStars(waves_k, stars_divide, tot_stars, flux_LSF2D, params
     if print_msg:
                 print('---------------------------------\n')
     return flux_k2D, type_id
+
+def shuffleAlongAxis(arr_a2D, arr_b1D):
+    """
+    Function to shuffle matrix along a particular axis
+    @arr :: preferable 2D arr
+    @axis :: axis along which one would like to shuffle the arr (0 for rows, 1 for cols)
+    """
+    assert len(arr_a2D) == len(arr_b1D)
+    p = np.random.permutation(len(arr_a2D))
+    return arr_a2D[p], arr_b1D[p]
 
 """
 
@@ -346,47 +366,6 @@ def determineBestFit10Stars(u_pix, num_stars, perms_arr, data_vals_2Darr, num_sp
     for i in range(len(perms_arr)):
         diff_vals = 0
         template_flux_matrix2D = loadTemplates10Stars(perms_arr, num_stars, i)
-        
-        # reduce the dimensions of the matrix to cal. the minimizing statistic
-        temp_vals_2Darr = splitFOVtoGrid(template_flux_matrix2D, num_splits)
-        
-        # calculate statistic betweek 'data image and template image'
-        for row in range(num_splits):
-            for col in range(num_splits):
-                model = temp_vals_2Darr[row][col]
-                data = data_vals_2Darr[row][col]
-                diff_vals += (model-data)**2
-                
-        # cal the final chi-sq statistic for each template and save it in an array
-        chi_squared.append(np.sum(diff_vals))        
-        
-        # shows a progress bar during computations        
-        ss.showProgress(i, len(perms_arr))
-        
-    # find the template with the minimime chi-squared
-    min_idx = np.where(chi_squared == np.min(chi_squared))
-    template_flux_matrix2D = loadTemplates(perms_arr, num_stars, min_idx[0][0])
-    
-    # print result       
-    print('\n'+r' The best-fitting permutation is %d with chi-squared = %.2f'%(min_idx[0][0], np.min(chi_squared)))
-    return chi_squared, min_idx, template_flux_matrix2D
-
-def determineBestFitNStars(u_pix, num_stars, perms_arr, data_vals_2Darr, num_splits):
-    """
-    Function to calculate the difference between the 'data image' and 'template image'
-    @u_pix :: dimensions of the FOV
-    @num_stars :: number of stars in the FOV
-    @perms_arr :: arr with info about all possible permutations of the input array
-    @data_flux_matrix2D :: slitless image that is considered as the 'data-input'
-    Returns ::
-    @chi_squared :: ndarray that stores the chi-squared for every permutation  
-    @min_idx :: the permutation no. for which the chi-squared in minimum
-    @template_flux_matrix2D :: the template that minimizes the chi-squared
-    """
-    chi_squared = []
-    
-    for i in range(len(perms_arr)):
-        diff_vals = 0
         
         # reduce the dimensions of the matrix to cal. the minimizing statistic
         temp_vals_2Darr = splitFOVtoGrid(template_flux_matrix2D, num_splits)
