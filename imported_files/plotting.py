@@ -85,6 +85,8 @@ def plotDispersedStars(ax, x_pos, y_pos, disperse_range, waves_k, dispersion_ang
     @noise_level :: decides the amplitude of noise to add to the flux (in %)
     @u_pix :: number of pixels in the FOV
     @disperse_range :: the length dispersion range for each star
+    @dispersion_angle :: the angle of dispersion
+    @no_plot :: boolean to decide wether or not to plot the figure of the dispersed stars
 
     @Returns :: noise_matrix2D :: 2D noise matrix
     """

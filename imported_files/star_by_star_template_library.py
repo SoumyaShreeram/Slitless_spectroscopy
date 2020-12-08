@@ -173,8 +173,16 @@ def starsOutsideFOV(star_neighbours):
 
 def dispersionWithNstars(total_stars_FOV_params, u_pix_arr, waves_k, disperse_range, dispersion_angle, create_dispersed_files):
     """
-    Function to disperse the stars in the effective FOV
-    Note that the effective FOV also contains stars close to the edges, whose info can't be obtained accurately 
+    Function to disperse all the stars in the effective FOV
+    @total_stars_FOV_params :: arr that contains [x_pos_out, y_pos_out, x_pos_out_added, y_pos_out_added, mag_H_out, mag_Ks_out] for the effective FoV
+    @u_pix_arr :: arr that contains the x-y dimension of the effective FoV
+    @waves_k :: wavelength arr over which the stars are dispersed
+    @disperse_range :: the length dispersion range for each star
+    @dispersion_angle :: the angle of dispersion
+    @create_dispersed_files :: bool to avoid regenerating the dispersion, if it already exists
+
+    Returns ::
+    x_disperse, y_disperse :: the indicies of dispersion of every star in the 'effective FoV'
     """    
     # mapping right ascension and declination to (pixel, pixel) FOV
     x_posFOV, y_posFOV = ssfm.mapToFOVinPixels(total_stars_FOV_params[2], total_stars_FOV_params[3], u_pix_arr[0], u_pix_arr[1])
@@ -208,10 +216,18 @@ def dispersionWithNstars(total_stars_FOV_params, u_pix_arr, waves_k, disperse_ra
 
 def findStellarTypesDataStars(n_stars, hot_stars_arr, stars_with_n_neighbours, star_neighbours, x_pos, y_pos, x_FOV, y_FOV):
     """
-    Function to find the stellar types of the region from the data image
-    @
-    @
-    @
+    Function to find the stellar types of the region from the DATA image
+    @n_stars :: the number of stars withing the region of the data image
+    @hot_stars_arr :: arr holds info about the % of hot stars considered
+    @stars_with_n_neighbours :: arr that contains the indicies of all the target stars in the data image containing n_stars for neighbours
+    @star_neighbours :: ndarray that holds info about [x, y, mKs, mH] for all the stars in the 'effective FoV'
+    @x_pos, y_pos :: the x and y position of all the stars in the effective FoV
+    @x_FOV, y_FOV :: as the name suggests, the x and y positions of all the stars in the 'defined FoV'
+
+    Returns ::
+    @stellar_types_data_arr :: this arr holds info about the configuration i.e. stellar types of all the stars in the region
+    @target_star_type :: arr hold info about the stellar type of the target star along
+    @target_star_idx :: arr holds info about the position of the target star index amongst the arr of all n_stars in the defined region
     """
     type_id = np.load('Data/Many_star_model/type_id_shuffled.npy')
     stellar_types_data_arr = np.zeros((0, len(hot_stars_arr))) 
@@ -242,6 +258,19 @@ def countHotStars(target_star_prediction):
     return count_hot_stars
 
 def findTemplateNumber(template_dir, selected_temps, resulting_params_all, hot_stars_arr, n_stars, region_idx):
+    """
+    Function to find the template no of the chosen configuration (templates are ordered in directories labelled by their hot star distribution)
+    @template_dir :: the directory containing the template files
+    @selected_temps :: arr containing the values of all the selected templated files
+    @resulting_params_all :: arr containing the info of the chi-squares for all the templates, for each hot-star distribution under concern
+    @hot_stars_arr :: arr holds info about the % of hot stars considered
+    @n_stars :: the number of stars withing the region of the data image
+    @region_idx :: index runs over all the regions that contain #n_stars
+
+    Returns ::
+    best_fit_perm_all :: arr holds info about all the configurations of the chosen templates
+    """
+
     len_pems, template_nos = [], []
     best_fit_perm_all = np.zeros((0, n_stars))
     
@@ -268,3 +297,4 @@ def findTemplateNumber(template_dir, selected_temps, resulting_params_all, hot_s
                 best_fit_perm = best_fit_perm[normalize_temps.astype(int)]
                 best_fit_perm_all = np.append(best_fit_perm_all, best_fit_perm, axis=0)
     return best_fit_perm_all
+
