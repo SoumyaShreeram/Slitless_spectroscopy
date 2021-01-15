@@ -40,6 +40,7 @@ from itertools import permutations
 import Simulating_Spectra as ss
 import Slitless_spec_forward_modelling as ssfm
 import plotting as pt
+import star_by_star_template_library as stl
 """
 
 ### 1. Functions for fitting the templates from the generated library
@@ -175,7 +176,7 @@ def reduceMatrixResolutions(data_mat, limits, num_splits):
     @data_mat :: the 2D matrix
     @limits :: limits of the matrix in the defined FoV
     """
-    data_mat_grid = np.zeros((0, int(data_mat.shape[1]/5)))
+    data_mat_grid = np.zeros((0, int(data_mat.shape[1]/num_splits)))
     arr_x = np.linspace(limits[0], limits[1], int(data_mat.shape[1]))
 
     for i in range(data_mat.shape[0]):
@@ -264,13 +265,8 @@ def recoverBestTemplatePermutation(resulting_params_all, hot_stars_arr, i, n_sta
     ax = None
     return ax, best_fit_perms_2D
 
-def lenPerms(hot_stars_arr, resulting_params_all):
-    len_pems = []
-    for i, hot_stars in enumerate(hot_stars_arr):
-        len_pems.append(len(resulting_params_all[0][i]))
-    return len_pems
         
-def analyzeAllChiSqs(resulting_params_all, star_idx, hot_stars_arr, pal, plot_fig):
+def analyzeAllChiSqs(ax, resulting_params_all, star_idx, hot_stars_arr, pal, plot_fig, method):
     """
     Function to evaluate chi-sqs and define the cut for analysis
     """
@@ -278,32 +274,31 @@ def analyzeAllChiSqs(resulting_params_all, star_idx, hot_stars_arr, pal, plot_fi
     norm_chi_sqs = region_one_chi_sqs/np.max(region_one_chi_sqs)
     
     # define the chi-squre below which the templates are considered
-    define_cut = (np.max(norm_chi_sqs)-np.min(norm_chi_sqs))/4
-    chi_sq_cut = np.min(norm_chi_sqs) + define_cut 
+    if method[0] == 'define_cut':
+        chi_sq_cut = method[1]
+        define_cut = (np.max(norm_chi_sqs)-np.min(norm_chi_sqs))/chi_sq_cut
+        chi_sq_cut = np.min(norm_chi_sqs) + define_cut 
+        selected_idicies = np.where(norm_chi_sqs < chi_sq_cut)
+        
+    if method[0] == 'find_N_smallest_vals':
+        num_templates = method[1]
+        selected_idicies = [np.argsort(norm_chi_sqs)[:int(num_templates)]]
         
     # plot only the first region's chi-square if plot_fig is set True
     if plot_fig and star_idx==0:
-        fig, ax = plt.subplots(1,1,figsize=(9,8))
-        num_perms = np.arange(len(norm_chi_sqs))
-        len_pems = []
-        ax.hlines(chi_sq_cut, np.min(num_perms), np.max(num_perms), colors='r', linestyle='dashed', linewidth=2, zorder=2)
-        
-        for i, hot_stars in enumerate(hot_stars_arr):        
-            len_pems.append(len(resulting_params_all[star_idx][i]))
-            
-            if i ==0: # for the first case
-                ax.plot(num_perms[0:len_pems[-1]], norm_chi_sqs[0:len_pems[i]], marker='.', color=pal[i], label='%d hor stars'%(hot_stars*100))
-            
-            # later cases, getting the start and end points and plotting them
-            if i>0:  
-                start = np.sum(len_pems[0:-1]).astype(int)
-                ax.plot(num_perms[start:start+len_pems[-1]], norm_chi_sqs[start:start+len_pems[-1]], '-', color=pal[i], label='%d %s hot stars'%(hot_stars*100, '%'))
-        ax.plot(num_perms, norm_chi_sqs, 'k.', markersize=2)
-        
-        # set labels
-        pt.setLabel(ax, 'Template number', 'Chi-squares', '', 'default', \
-                    'default', legend=True)     
-    return norm_chi_sqs, np.where(norm_chi_sqs < chi_sq_cut)
+        pt.plotChiSqAllTemplates(ax, pal, norm_chi_sqs, hot_stars_arr, resulting_params_all, star_idx, chi_sq_cut)
+    return norm_chi_sqs, selected_idicies
+
+def findMinChiSq(resulting_params_all, star_idx):
+    """
+    Function to evaluate chi-sqs and define the cut for analysis
+    """
+    region_one_chi_sqs = np.concatenate(resulting_params_all[star_idx])
+    norm_chi_sqs = region_one_chi_sqs/np.max(region_one_chi_sqs)
+       
+    # find the minimum chi-square
+    min_chi_sq = np.min(norm_chi_sqs)
+    return min_chi_sq, np.where(norm_chi_sqs == min_chi_sq)
 
 def recoverBestTemplatePermutation(resulting_params_all, hot_stars_arr, i, n_stars, best_fit_perms_2D, template_dir, plot_chi_sqs):
     """
@@ -332,3 +327,56 @@ def recoverBestTemplatePermutation(resulting_params_all, hot_stars_arr, i, n_sta
         ax.plot(hot_stars_arr[best_idx],  np.min(chi_squares_norm), "r*") 
     ax = None
     return ax, best_fit_perms_2D
+
+def evaluateAccuraryNstars(hot_probability, cold_probability, target_star_type):
+    """
+    Function to evaluate the accuracy of target stars
+    @hot_probability :: percentage that defines the probability for the star to be hot 
+    @cold_probability :: percentage that defines the probability for the star to be cold
+    """
+    stellar_type_predicts = []
+    for i in range(len(hot_probability)):
+        if hot_probability[i] > cold_probability[i]:
+            stellar_type_predicts.append(0)
+        elif hot_probability[i] == cold_probability[i]:
+            stellar_type_predicts.append(None)
+        else:
+            stellar_type_predicts.append(7)
+
+    count_good_stars = 0
+    for i in range(len(stellar_type_predicts)):
+        if stellar_type_predicts[i] == target_star_type[i]:
+            count_good_stars += 1
+
+    return count_good_stars/len(stellar_type_predicts), np.where(stellar_type_predicts == target_star_type),  np.where(stellar_type_predicts != target_star_type)
+
+def checkAccuracyForMinChiSqTechnique(min_target_star_prediction_all, target_star_type):
+    """
+    Function to check the accuracy of the minimum chi-sq method
+    """
+    count_good_stars = 0
+    for i in range(len(min_target_star_prediction_all)):
+        if min_target_star_prediction_all[i] == target_star_type[i]:
+            count_good_stars += 1
+    return count_good_stars
+
+def extractingAccuracyRoutine(n_stars, total_neighbours, hot_stars_arr, template_dir):
+
+    # associate spectra to those stars
+    stars_with_n_neighbours = np.where(total_neighbours == n_stars)
+    
+    # load files
+    resulting_params_all = np.load('Data/Chi_sq_vals/%d_stars_%d_regions.npy'%(n_stars, len(stars_with_n_neighbours[0])), allow_pickle=True)
+
+    stellar_types_data_arr = np.load('Data/Target_star_predictions/Data_stellar_info_%d_stars.npy'%n_stars, allow_pickle = True)
+    target_star_data =  np.load('Data/Target_star_predictions/Data_target_info_%d_stars.npy'%n_stars, allow_pickle = True)
+    target_star_type, target_star_idx = target_star_data[0], target_star_data[1]
+    
+    for j, chi_sq_cut in enumerate([4]):
+        hot_star_counts, target_star_prediction_all = stl.getTargetStarPrediction('ax', hot_stars_arr, resulting_params_all, stars_with_n_neighbours,\
+         template_dir, n_stars, target_star_idx, print_msg=False, chi_sq_cut=chi_sq_cut)
+
+        hot_probability, cold_probability = pt.plotTargetStarPrediction('ax', hot_star_counts, target_star_prediction_all, 'hatch[j]', chi_sq_cut, n_stars, plot_fig=False)
+
+        accuracy = evaluateAccuraryNstars(hot_probability, cold_probability, target_star_type)
+    return accuracy

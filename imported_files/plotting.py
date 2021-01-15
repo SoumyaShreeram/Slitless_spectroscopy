@@ -34,6 +34,7 @@ from matplotlib.collections import PatchCollection
 from matplotlib.patches import Rectangle
 
 import matplotlib
+from mpl_toolkits import axes_grid1
 
 # personal file imports
 import Simulating_Spectra as ss
@@ -415,19 +416,159 @@ def plotSubRegion(limits, flux_mat, title, x_label, cmaps):
     cbar = plt.colorbar(plot1, aspect=10);
     return 
 
-def plotTargetStarPrediction(hot_star_counts, target_star_prediction_all):
+def plotTargetStarPrediction(ax, hot_star_counts, target_star_prediction_all, hatch, chi_sq_cut, n_stars, plot_fig):
     """
     Function to plot a histogram showing the target star region for all stars for a given set of regions
     """
     # get the cold stars from the all star predictions array
-    cold_star_counts = []
+    cold_star_counts, hot_probability, cold_probability = [], [], []
+    
     for i in range(len(target_star_prediction_all)):
         cold_star_counts.append(len(target_star_prediction_all[i])-hot_star_counts[i])
-
-    fig, ax = plt.subplots(1,1, figsize=(9,8))
-
-    labels = ['Cold stars Probability', 'Hot Star Probability']
-    ax.hist([cold_star_counts, hot_star_counts], bins=len(cold_star_counts), stacked=True, density=True, label=labels)
+        
+        hot_probability.append((hot_star_counts[i]*100)/len(target_star_prediction_all[i]))
+        cold_probability.append((cold_star_counts[i]*100)/len(target_star_prediction_all[i]))        
     
-    setLabel(ax, 'Target star with %d neighbours'%(n_stars-1), 'Stellar type probability', 'Prediction for every target star', 'default', 'default', legend=True)
+    if plot_fig:   
+        labels = ['Cold stars Probability; chi-square cut = %d'%chi_sq_cut, 'Hot Star Probability; chi-square cut = %d'%chi_sq_cut]
+        ax.hist(np.transpose([cold_probability, hot_probability]), stacked=True, label=labels, density=False, color=['#6b81d6', '#db7075'], hatch=hatch, edgecolor='k')
+        
+        setLabel(ax, 'Hot/Cold probability (%s) for %d stars'%('%', n_stars), 'Counts', 'Prediction for every target star', 'default', 'default', legend=True)
+        ax.grid(False)
+    return hot_probability, cold_probability
+
+def plotChiSqPredictions(ax, cold_probability, hot_probability, linestyle, chi_sq_cut, n_stars):
+    """
+    Function to plot the chi-square predictions 
+
+    """
+    labels = ['Cold stars Probability; chi-square cut = %d'%chi_sq_cut, 'Hot Star Probability; chi-square cut = %d'%chi_sq_cut]
+    ax.plot(cold_probability, '#db7075', linestyle=linestyle, label=labels[0])
+    ax.plot(hot_probability, '#676a6e', linestyle=linestyle , label=labels[1])
+    ax.hlines(50, 0, len(cold_probability), colors='k', linestyle='solid', linewidth=3, zorder=2)
+            
+    setLabel(ax, 'Target star number with %d neighbours'%(n_stars-1), \
+        'Stellar type probability (%s)'%('%'), \
+        'Predictions with chi-square cut = %d'%chi_sq_cut, 'default', [25, 75],\
+         legend=True)
+    return
+
+def plotChiSqAllTemplates(ax, pal, norm_chi_sqs, hot_stars_arr, resulting_params_all, star_idx, chi_sq_cut):
+    """
+    Function to plot the chi-squares for all the templates
+
+    """
+    num_perms = np.arange(len(norm_chi_sqs))
+    len_pems = []
+    ax.hlines(chi_sq_cut, np.min(num_perms), np.max(num_perms), colors='r', linestyle='dashed', linewidth=2, zorder=2)
+    
+    for i, hot_stars in enumerate(hot_stars_arr):        
+        len_pems.append(len(resulting_params_all[star_idx][i]))
+        
+        if i ==0: # for the first case
+            ax.plot(num_perms[0:len_pems[-1]], norm_chi_sqs[0:len_pems[i]], marker='.', color=pal[i], label='%d hor stars'%(hot_stars*100))
+        
+        # later cases, getting the start and end points and plotting them
+        if i>0:  
+            start = np.sum(len_pems[0:-1]).astype(int)
+            ax.plot(num_perms[start:start+len_pems[-1]], norm_chi_sqs[start:start+len_pems[-1]], '-', color=pal[i], label='%d %s hot stars'%(hot_stars*100, '%'))
+    ax.plot(num_perms, norm_chi_sqs, 'k.', markersize=2)
+    
+    # set labels
+    setLabel(ax, 'Template number', 'Chi-squares', '', 'default', \
+                'default', legend=True)   
+    return
+
+"""
+Accuracy plots
+""" 
+def addColorbar(im, aspect=20, pad_fraction=0.5, **kwargs):
+    """
+    Add a vertical color bar to an image plot.
+    Function taken from Matthias (https://bit.ly/39tuS5P)
+    """
+    divider = axes_grid1.make_axes_locatable(im.axes)
+    width = axes_grid1.axes_size.AxesY(im.axes, aspect=1./aspect)
+    pad = axes_grid1.axes_size.Fraction(pad_fraction, width)
+    current_ax = plt.gca()
+    cax = divider.append_axes("right", size=width, pad=pad)
+    plt.sca(current_ax)
+    return im.axes.figure.colorbar(im, cax=cax, **kwargs)
+
+def plotColormap(fig, ax, colormap, acc_vals_arr, n_star_arr, num_lowest_temps):
+    """
+    Plot a colormap using imshow
+    acc_vals_arr :: data array of shape (n, m) != 0
+    n_star_arr, num_lowest_temps :: x and y axis labels arrays    
+    """
+    # set color map preferences and plot results
+    cmap = plt.get_cmap(colormap)    
+    psm = ax.imshow(np.transpose(acc_vals_arr), cmap=cmap)
+    
+    # We want to show all ticks...
+    ax.set_xticks(np.arange(len(n_star_arr)))
+    ax.set_yticks(np.arange(len(num_lowest_temps)))
+    
+    # and label them accordingly
+    ax.set_xticklabels(n_star_arr)
+    ax.set_yticklabels(num_lowest_temps)
+    
+    # Loop over data dimensions and create text annotations.
+    for i in range(len(num_lowest_temps)):
+        for j in range(len(n_star_arr)):
+            text = ax.text(j, i, "%d"%(acc_vals_arr[j, i]*100), ha="center", va="center", color="k")
+    
+    # set the label for the plot
+    setLabel(ax, 'Total number of stars in the region', 'Number of lowest chi-square templates', 'Effect of statistics\n (number of templates chosen) on the accuracy of stellar type prediction\n', 'default', \
+                'default', legend=False)
+    
+    addColorbar(psm)
+    ax.grid(False)  
+    
+    fig.tight_layout()    
+    return 
+
+def plotAccuracyColormap(n_star_arr, num_lowest_temps, num_splits, colormap):
+    """
+    Function to collect the accuracy vals and plot it
+    n_star_arr, num_lowest_temps :: x and y axis labels arrays
+    num_splits :: sets the pixel scale (fitting parameter)
+    colormap :: check matplotlib colormap for all possible options
+    """
+    # get these vals from files, set parameters
+    acc_vals_arr = np.zeros((0, len(num_lowest_temps)))
+    
+    for n_s in n_star_arr:
+        acc_vals = np.load('Data/Chi_sq_vals/%d_stars_accuracy_vals_%d_pixel_scale.npy'%(n_s, num_splits), allow_pickle=True)
+        acc_vals_arr = np.append(acc_vals_arr, [acc_vals], axis=0)
+    
+    fig, ax = plt.subplots(1, 1, figsize=(12, 10))
+    plotColormap(fig, ax, colormap, acc_vals_arr, n_star_arr, num_lowest_temps)
+    
+    plt.savefig('Figures/accuracy_map_for_diff_stats.png', facecolor='w')
+    return acc_vals_arr
+
+def plotAccuracyPixelScale(pixel_scale, num_lowest_temps, colormap, n_star_arr):
+    """
+    Function plots an accuracy color map for different pixel scales (a fitting parameter)
+    n_star_arr, num_lowest_temps :: x and y axis labels arrays
+    colormap :: check matplotlib colormap for all possible options    
+    """
+    fig, ax = plt.subplots(1, len(n_star_arr), figsize=(13, 12))
+    
+    for i, n_s in enumerate(n_star_arr):
+        # get these vals from files, set parameters
+        acc_vals_arr = np.zeros((0, len(num_lowest_temps)))
+
+        for p_s in pixel_scale:
+            acc_vals = np.load('Data/Chi_sq_vals/%d_stars_accuracy_vals_%d_pixel_scale.npy'%(n_s, p_s), allow_pickle=True)
+            acc_vals_arr = np.append(acc_vals_arr, [acc_vals], axis=0)
+
+        if len(n_star_arr)>1:
+            ax = ax[i]
+            
+        plotColormap(fig, ax, colormap, acc_vals_arr, pixel_scale, num_lowest_temps)
+        ax.set_title('Effect of pixel scale on accuracy:\n %d stars'%n_s)
+
+    plt.savefig('Figures/accuracy_map_for_diff_pixel_scale.png', facecolor='w')    
     return

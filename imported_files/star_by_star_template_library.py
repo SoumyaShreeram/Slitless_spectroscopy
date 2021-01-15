@@ -43,7 +43,7 @@ from more_itertools import distinct_permutations
 import Simulating_Spectra as ss
 import Slitless_spec_forward_modelling as ssfm
 import plotting as pt
-
+import Fitting_and_pdfs as fap
 
 """
 
@@ -230,7 +230,7 @@ def findStellarTypesDataStars(n_stars, hot_stars_arr, stars_with_n_neighbours, s
     @target_star_idx :: arr holds info about the position of the target star index amongst the arr of all n_stars in the defined region
     """
     type_id = np.load('Data/Many_star_model/type_id_shuffled.npy')
-    stellar_types_data_arr = np.zeros((0, len(hot_stars_arr))) 
+    stellar_types_data_arr = np.zeros((0, n_stars)) 
     target_star_type = []
     target_star_idx = []
     for i, stars_idx in enumerate(stars_with_n_neighbours[0]):
@@ -245,8 +245,8 @@ def findStellarTypesDataStars(n_stars, hot_stars_arr, stars_with_n_neighbours, s
         target_star_idx.append(stellar_types_data[2][0])
 
     target_star_info = [target_star_type, target_star_idx]
-    np.save('Data/Cropped_Data_Images/%d_stars/stellar_types_region_info.npy'%n_stars, stellar_types_data_arr, target_star_type)
-    np.save('Data/Cropped_Data_Images/%d_stars/stellar_types_target_star_info.npy'%n_stars, stellar_types_data_arr, target_star_info)
+    np.save('Data/Target_star_predictions/Data_stellar_info_%d_stars.npy'%(n_stars), stellar_types_data_arr)
+    np.save('Data/Target_star_predictions/Data_target_info_%d_stars'%n_stars, [target_star_type, target_star_idx])
     return stellar_types_data_arr, target_star_type, target_star_idx
 
 
@@ -258,7 +258,7 @@ def countHotStars(target_star_prediction):
     return count_hot_stars
 
 
-def findTemplateNumber(best_fit_perm_all, len_pems, template_dir, selected_temps, resulting_params_all, hot_stars_arr, n_stars, region_idx):
+def findTemplateNumber(best_fit_perm_all, template_dir, selected_temps, resulting_params_all, hot_stars_arr, n_stars, region_idx):
     """
     Function to find the template no of the chosen configuration (templates are ordered in directories labelled by their hot star distribution)
     @template_dir :: the directory containing the template files
@@ -271,40 +271,38 @@ def findTemplateNumber(best_fit_perm_all, len_pems, template_dir, selected_temps
     Returns ::
     best_fit_perm_all :: arr holds info about all the configurations of the chosen templates
     """
-    len_pems = len_pems - 1 
-    template_nos = []
-    normalize_temps = []
+    template_nos, len_pems, normalize_temps = [], [], []
     
     for i, hot_stars in enumerate(hot_stars_arr):
+        normalize_temps = []
+        len_pems.append(len(resulting_params_all[region_idx][i]))
+        
         # for the first case            
         if i == 0: 
             if np.any(selected_temps[0] < len_pems[i]):
                 # get the template nos
-                chosen_vals = np.where(selected_temps[0] < len_pems[i])
+                chosen_vals = np.where(selected_temps[0] < len_pems[-1])
                 normalize_temps = np.array(selected_temps[0])[chosen_vals]
                 
         # for hot star distributioins that are greated than 0/Null
-        if i>0 and i < len(hot_stars_arr)-1:
-            if np.any((selected_temps[0] >= np.sum(len_pems[0:i])) & (selected_temps[0]< np.sum(len_pems[0:i+1]))):
+        if i>0:
+            if np.any((selected_temps[0] >= np.sum(len_pems[0:-1])) & (selected_temps[0]< np.sum(len_pems))):
                 # for all other hot-star distributions
-                chosen_vals = np.where((selected_temps[0] >= np.sum(len_pems[0:i])) & (selected_temps[0]< np.sum(len_pems[0:i+1])))
-                normalize_temps = np.array(selected_temps[0])[chosen_vals]-np.sum(len_pems[0:i])
-                                
-        if i == len(hot_stars_arr)-1:
-            if np.any((selected_temps[0] >= np.sum(len_pems[0:i])) & (selected_temps[0]< np.sum(len_pems))):
-                # if the condition is met, get these indicies
-                chosen_vals = np.where((selected_temps[0] >= np.sum(len_pems[0:i])) & (selected_temps[0]< np.sum(len_pems)))
-                normalize_temps = np.array(selected_temps[0])[chosen_vals]-np.sum(len_pems[0:i])
-                
+                chosen_vals = np.where((selected_temps[0] >= np.sum(len_pems[0:-1])) & (selected_temps[0]< np.sum(len_pems)))
+                normalize_temps = np.array(selected_temps[0])[chosen_vals]-np.sum(len_pems[0:-1])
+        
         if len(normalize_temps)>0:
             # get the perm arr for the best hot-star distribution
             best_fit_perm = np.load(template_dir+ '%d_stars/%d_hot_stars/perm_arr.npy'%(n_stars, hot_stars*n_stars))
             best_fit_perm = best_fit_perm[normalize_temps.astype(int)]
+            
+            if best_fit_perm.shape[1] != n_stars:
+                best_fit_perm = best_fit_perm[:, 0:n_stars]
             best_fit_perm_all = np.append(best_fit_perm_all, best_fit_perm, axis=0)
     return best_fit_perm_all
 
 def getTargetStarPrediction(hot_stars_arr, resulting_params_all, stars_with_n_neighbours,\
- template_dir, n_stars, target_star_idx, print_msg):
+ template_dir, n_stars, target_star_idx, print_msg, method):
     """
     Function to get the stellar type of all the target star
     @hot_stars_arr :: arr holds info about the % of hot stars considered
@@ -317,15 +315,12 @@ def getTargetStarPrediction(hot_stars_arr, resulting_params_all, stars_with_n_ne
     target_star_prediction_all = []
     hot_star_counts = []
     best_fit_perm_all = np.zeros((0, n_stars))
-
-    # number pf permutations for each hot star distribution
-    len_perms = fap.lenPerms(hot_stars_arr, resulting_params_all)
-
-    for i, stars_idx in enumerate(stars_with_n_neighbours[0]):
-        norm_chi_sqs, selected_temps = fap.analyzeAllChiSqs(resulting_params_all, i, hot_stars_arr, pal=0, plot_fig=False)
+    
+    for i, stars_idx in enumerate(stars_with_n_neighbours[0]):    
+        norm_chi_sqs, selected_temps = fap.analyzeAllChiSqs('ax', resulting_params_all, i, hot_stars_arr, pal=0, plot_fig=False, method=method)
         
         # find the stellar configurations of the best templates that are chosen
-        best_fit_perm_all = findTemplateNumber(best_fit_perm_all, len_perms, template_dir, selected_temps, resulting_params_all, hot_stars_arr, n_stars, region_idx=i)
+        best_fit_perm_all = findTemplateNumber(best_fit_perm_all, template_dir, selected_temps, resulting_params_all, hot_stars_arr, n_stars, region_idx=i)
         
         target_star_prediction = []
         for idx in range(len(best_fit_perm_all)):
@@ -346,3 +341,20 @@ def getTargetStarPrediction(hot_stars_arr, resulting_params_all, stars_with_n_ne
     # needed for accessing if a given star is hot or cold
     np.save('Data/Target_star_predictions/Hot_stellar_type_probability_%d_star_regions.npy'%n_stars, hot_star_counts)
     return hot_star_counts, target_star_prediction_all
+
+
+def getMinimumChiSqStarPrediction(resulting_params_all, template_dir, hot_stars_arr, n_stars, stars_with_n_neighbours, target_star_idx):
+    target_star_prediction_all = []
+    hot_star_counts = []
+    best_fit_perm = np.zeros((0, n_stars))
+    
+    for i, stars_idx in enumerate(stars_with_n_neighbours[0]):
+        min_chi_sq, selected_temp_no = fap.findMinChiSq(resulting_params_all, i)
+
+        # find the stellar configurations of the best templates that are chosen
+        best_fit_perm = findTemplateNumber(best_fit_perm, template_dir, selected_temp_no, resulting_params_all, hot_stars_arr, n_stars, region_idx=i)
+        
+        # get the target star prediction and save it for every region
+        target_star_prediction = best_fit_perm[0][target_star_idx[i]]
+        target_star_prediction_all.append(target_star_prediction)
+    return target_star_prediction_all
