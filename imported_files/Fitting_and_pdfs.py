@@ -235,7 +235,7 @@ def loadDataReduceResolution(n_stars, i, num_splits, limits, save_data_crop_dir,
 
 def recoverBestTemplatePermutation(resulting_params_all, hot_stars_arr, i, n_stars, best_fit_perms_2D, template_dir, plot_chi_sqs):
     """
-    Function 
+    DEPRECATED: Function to recover the best termplate permutation
     """
     resulting_params = resulting_params_all[i]
 
@@ -264,29 +264,45 @@ def recoverBestTemplatePermutation(resulting_params_all, hot_stars_arr, i, n_sta
     ax = None
     return ax, best_fit_perms_2D
 
-def analyzeAllChiSqs(resulting_params_all, star_idx, plot_fig):
+def lenPerms(hot_stars_arr, resulting_params_all):
+    len_pems = []
+    for i, hot_stars in enumerate(hot_stars_arr):
+        len_pems.append(len(resulting_params_all[0][i]))
+    return len_pems
+        
+def analyzeAllChiSqs(resulting_params_all, star_idx, hot_stars_arr, pal, plot_fig):
     """
     Function to evaluate chi-sqs and define the cut for analysis
     """
     region_one_chi_sqs = np.concatenate(resulting_params_all[star_idx])
     norm_chi_sqs = region_one_chi_sqs/np.max(region_one_chi_sqs)
-
-    num_perms = np.arange(len(region_one_chi_sqs))
-
-    if plot_fig:
-        fig, ax = plt.subplots(1,1,figsize=(9,8))
-        # TODO: plot the colors for different hot star distributions to be different
-        ax.plot(num_perms, norm_chi_sqs, 'b.')
-
+    
     # define the chi-squre below which the templates are considered
     define_cut = (np.max(norm_chi_sqs)-np.min(norm_chi_sqs))/4
     chi_sq_cut = np.min(norm_chi_sqs) + define_cut 
-
-    if plot_fig:
-        ax.hlines(chi_sq_cut, np.min(num_perms), np.max(num_perms), colors='r')
-
+        
+    # plot only the first region's chi-square if plot_fig is set True
+    if plot_fig and star_idx==0:
+        fig, ax = plt.subplots(1,1,figsize=(9,8))
+        num_perms = np.arange(len(norm_chi_sqs))
+        len_pems = []
+        ax.hlines(chi_sq_cut, np.min(num_perms), np.max(num_perms), colors='r', linestyle='dashed', linewidth=2, zorder=2)
+        
+        for i, hot_stars in enumerate(hot_stars_arr):        
+            len_pems.append(len(resulting_params_all[star_idx][i]))
+            
+            if i ==0: # for the first case
+                ax.plot(num_perms[0:len_pems[-1]], norm_chi_sqs[0:len_pems[i]], marker='.', color=pal[i], label='%d hor stars'%(hot_stars*100))
+            
+            # later cases, getting the start and end points and plotting them
+            if i>0:  
+                start = np.sum(len_pems[0:-1]).astype(int)
+                ax.plot(num_perms[start:start+len_pems[-1]], norm_chi_sqs[start:start+len_pems[-1]], '-', color=pal[i], label='%d %s hot stars'%(hot_stars*100, '%'))
+        ax.plot(num_perms, norm_chi_sqs, 'k.', markersize=2)
+        
+        # set labels
         pt.setLabel(ax, 'Template number', 'Chi-squares', '', 'default', \
-                    'default', legend=False)
+                    'default', legend=True)     
     return norm_chi_sqs, np.where(norm_chi_sqs < chi_sq_cut)
 
 def recoverBestTemplatePermutation(resulting_params_all, hot_stars_arr, i, n_stars, best_fit_perms_2D, template_dir, plot_chi_sqs):
@@ -309,7 +325,8 @@ def recoverBestTemplatePermutation(resulting_params_all, hot_stars_arr, i, n_sta
     best_fit_perm = best_fit_perm[template_no.astype(int)]    
     
     # save all the best perms for every region
-    best_fit_perms_2D = np.append(best_fit_perms_2D, [np.array(best_fit_perm[0])], axis=0)    if plot_chi_sqs:
+    best_fit_perms_2D = np.append(best_fit_perms_2D, [np.array(best_fit_perm[0])], axis=0)    
+    if plot_chi_sqs:
         fig, ax = plt.subplots(1,1, figsize=(9, 8))
         ax.plot(hot_stars_arr,  chi_squares_norm, label='Region %d'%i)
         ax.plot(hot_stars_arr[best_idx],  np.min(chi_squares_norm), "r*") 

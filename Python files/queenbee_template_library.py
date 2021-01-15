@@ -67,7 +67,7 @@ flux_LSF2D, params = np.load('Data/flux_K2D_LSF_norm.npy'), np.load('Data/params
 waves_k = np.load('Data/waves_k.npy')
 
 # would you like to discard foreground stars completely or do something more complicated
-discard_forground_stars = True
+discard_forground_stars = False
 foreground_cutoff = 1.1
 
 # start pixels of a small region of the sky
@@ -82,7 +82,7 @@ if discard_forground_stars:
 2. Understanding the neighbouring population of stars for the concerned FOV
 """
 
-for num_stars in [26, 27, 28, 29, 30]:
+for num_stars in [5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17]:
     for hot_stars in hot_stars_arr:
         print('\nGenerating templates for %d stars of which there exist %d hot stars...'%(num_stars, num_stars*hot_stars))
     

@@ -257,7 +257,8 @@ def countHotStars(target_star_prediction):
             count_hot_stars += 1
     return count_hot_stars
 
-def findTemplateNumber(template_dir, selected_temps, resulting_params_all, hot_stars_arr, n_stars, region_idx):
+
+def findTemplateNumber(best_fit_perm_all, len_pems, template_dir, selected_temps, resulting_params_all, hot_stars_arr, n_stars, region_idx):
     """
     Function to find the template no of the chosen configuration (templates are ordered in directories labelled by their hot star distribution)
     @template_dir :: the directory containing the template files
@@ -270,31 +271,78 @@ def findTemplateNumber(template_dir, selected_temps, resulting_params_all, hot_s
     Returns ::
     best_fit_perm_all :: arr holds info about all the configurations of the chosen templates
     """
-
-    len_pems, template_nos = [], []
-    best_fit_perm_all = np.zeros((0, n_stars))
+    len_pems = len_pems - 1 
+    template_nos = []
+    normalize_temps = []
     
     for i, hot_stars in enumerate(hot_stars_arr):
-        
-        len_pems.append(len(resulting_params_all[region_idx][i]))
-        
         # for the first case            
         if i == 0: 
-            if np.any(selected_temps[0]<len_pems[-1]):
+            if np.any(selected_temps[0] < len_pems[i]):
                 # get the template nos
-                chosen_vals = selected_temps[selected_temps[0]<len_pems[-1]]
-                template_nos.append(chosen_vals)
-        # for all other cases
-        else:
-            if np.any((selected_temps[0]>np.sum(len_pems[-2])) & (selected_temps[0]<np.sum(len_pems[-1]))):
+                chosen_vals = np.where(selected_temps[0] < len_pems[i])
+                normalize_temps = np.array(selected_temps[0])[chosen_vals]
                 
-                chosen_vals = np.where((selected_temps[0]>np.sum(len_pems[-2])) & (selected_temps[0]<np.sum(len_pems[-1])))
-                normalize_temps = np.array(selected_temps[0])[chosen_vals]-np.sum(len_pems[-2])
-                template_nos.append(normalize_temps)
+        # for hot star distributioins that are greated than 0/Null
+        if i>0 and i < len(hot_stars_arr)-1:
+            if np.any((selected_temps[0] >= np.sum(len_pems[0:i])) & (selected_temps[0]< np.sum(len_pems[0:i+1]))):
+                # for all other hot-star distributions
+                chosen_vals = np.where((selected_temps[0] >= np.sum(len_pems[0:i])) & (selected_temps[0]< np.sum(len_pems[0:i+1])))
+                normalize_temps = np.array(selected_temps[0])[chosen_vals]-np.sum(len_pems[0:i])
+                                
+        if i == len(hot_stars_arr)-1:
+            if np.any((selected_temps[0] >= np.sum(len_pems[0:i])) & (selected_temps[0]< np.sum(len_pems))):
+                # if the condition is met, get these indicies
+                chosen_vals = np.where((selected_temps[0] >= np.sum(len_pems[0:i])) & (selected_temps[0]< np.sum(len_pems)))
+                normalize_temps = np.array(selected_temps[0])[chosen_vals]-np.sum(len_pems[0:i])
                 
-                # get the perm arr for the best hot-star distribution
-                best_fit_perm = np.load(template_dir+ '%d_stars/%d_hot_stars/perm_arr.npy'%(n_stars, hot_stars*n_stars))
-                best_fit_perm = best_fit_perm[normalize_temps.astype(int)]
-                best_fit_perm_all = np.append(best_fit_perm_all, best_fit_perm, axis=0)
+        if len(normalize_temps)>0:
+            # get the perm arr for the best hot-star distribution
+            best_fit_perm = np.load(template_dir+ '%d_stars/%d_hot_stars/perm_arr.npy'%(n_stars, hot_stars*n_stars))
+            best_fit_perm = best_fit_perm[normalize_temps.astype(int)]
+            best_fit_perm_all = np.append(best_fit_perm_all, best_fit_perm, axis=0)
     return best_fit_perm_all
 
+def getTargetStarPrediction(hot_stars_arr, resulting_params_all, stars_with_n_neighbours,\
+ template_dir, n_stars, target_star_idx, print_msg):
+    """
+    Function to get the stellar type of all the target star
+    @hot_stars_arr :: arr holds info about the % of hot stars considered
+    @resulting_params_all :: arr containing the info of the chi-squares for all the templates, for each hot-star distribution under concern
+    @stars_with_n_neighbours :: arr that contains the indicies of all the target stars in the data image containing n_stars for neighbours
+    @template_dir :: the directory containing the template files
+    @n_stars :: the number of stars withing the region of the data image
+    @print_msg :: boolean to decide wether to print the message or not
+    """
+    target_star_prediction_all = []
+    hot_star_counts = []
+    best_fit_perm_all = np.zeros((0, n_stars))
+
+    # number pf permutations for each hot star distribution
+    len_perms = fap.lenPerms(hot_stars_arr, resulting_params_all)
+
+    for i, stars_idx in enumerate(stars_with_n_neighbours[0]):
+        norm_chi_sqs, selected_temps = fap.analyzeAllChiSqs(resulting_params_all, i, hot_stars_arr, pal=0, plot_fig=False)
+        
+        # find the stellar configurations of the best templates that are chosen
+        best_fit_perm_all = findTemplateNumber(best_fit_perm_all, len_perms, template_dir, selected_temps, resulting_params_all, hot_stars_arr, n_stars, region_idx=i)
+        
+        target_star_prediction = []
+        for idx in range(len(best_fit_perm_all)):
+            target_star_prediction.append(best_fit_perm_all[idx][target_star_idx[i]])
+        
+        # count the hot stars in the predictions array
+        hot_star_counts.append(countHotStars(target_star_prediction))
+
+        # save all the predictions
+        target_star_prediction_all.append(target_star_prediction)
+        
+        if print_msg:
+            print('Regions %d, %.2f hot star'%(i, hot_star_counts[i]/len(target_star_prediction)))
+
+    # needed to find the total number of predictions made for a given star
+    np.save('Data/Target_star_predictions/All_target_star_predictions_%d_star_regions.npy'%n_stars, target_star_prediction_all)
+
+    # needed for accessing if a given star is hot or cold
+    np.save('Data/Target_star_predictions/Hot_stellar_type_probability_%d_star_regions.npy'%n_stars, hot_star_counts)
+    return hot_star_counts, target_star_prediction_all

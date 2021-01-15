@@ -411,6 +411,23 @@ def plotSubRegion(limits, flux_mat, title, x_label, cmaps):
     plot1 = ax.contourf(X_grid, Y_grid, flux_mat, cmap=cmaps)
 
     # labeling and setting colorbar
-    pt.setLabel(ax, x_label, 'y-axis position (pixels)', title, 'default', 'default', legend=False)
+    setLabel(ax, x_label, 'y-axis position (pixels)', title, 'default', 'default', legend=False)
     cbar = plt.colorbar(plot1, aspect=10);
     return 
+
+def plotTargetStarPrediction(hot_star_counts, target_star_prediction_all):
+    """
+    Function to plot a histogram showing the target star region for all stars for a given set of regions
+    """
+    # get the cold stars from the all star predictions array
+    cold_star_counts = []
+    for i in range(len(target_star_prediction_all)):
+        cold_star_counts.append(len(target_star_prediction_all[i])-hot_star_counts[i])
+
+    fig, ax = plt.subplots(1,1, figsize=(9,8))
+
+    labels = ['Cold stars Probability', 'Hot Star Probability']
+    ax.hist([cold_star_counts, hot_star_counts], bins=len(cold_star_counts), stacked=True, density=True, label=labels)
+    
+    setLabel(ax, 'Target star with %d neighbours'%(n_stars-1), 'Stellar type probability', 'Prediction for every target star', 'default', 'default', legend=True)
+    return
