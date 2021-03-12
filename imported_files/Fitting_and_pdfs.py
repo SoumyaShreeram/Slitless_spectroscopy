@@ -188,6 +188,13 @@ def reduceMatrixResolutions(data_mat, limits, num_splits):
     arr_x_new = np.linspace(limits[0], limits[1], int(data_mat.shape[1]/num_splits))
     return data_mat_grid, arr_x_new
 
+def checkError(value):
+    if value != 0:
+        output = np.abs(value)
+    else:
+        output = 1
+    return output
+    
 def generateTemplatesCalChiSquare(x, y, mKs, template_dir, save_data_psf_crop_dir, n_stars, hot_stars, perms, disperse_range, dispersion_angle, u_pix_arr, limits, data_mat_arr, i, x_FOV, num_splits):
     """
     IMPORTANT: Function to generate and fit templates 
@@ -216,7 +223,7 @@ def generateTemplatesCalChiSquare(x, y, mKs, template_dir, save_data_psf_crop_di
             for col in np.where(arr_x > x_FOV)[0]:
                 model = flux_template_grid[row][col]
                 data = data_mat_grid[row][col]
-                diff_vals += (model-data)**2
+                diff_vals += ((data-model)**2)/(checkError(model))
                 
         # cal the final chi-sq statistic for each template and find the minimum
         chi_squared.append(np.sum(diff_vals))
@@ -344,11 +351,18 @@ def evaluateAccuraryNstars(hot_probability, cold_probability, target_star_type):
             stellar_type_predicts.append(7)
 
     count_good_stars = 0
+    
+    # keeps track of accurate vs in-accurate regions
+    count_good_stars_arr = []
+    
     for i in range(len(stellar_type_predicts)):
         if stellar_type_predicts[i] == target_star_type[i]:
             count_good_stars += 1
+            count_good_stars_arr.append(1)
+        else:
+            count_good_stars_arr.append(0)
 
-    return count_good_stars/len(stellar_type_predicts), np.where(stellar_type_predicts == target_star_type),  np.where(stellar_type_predicts != target_star_type)
+    return count_good_stars/len(stellar_type_predicts), count_good_stars_arr
 
 def checkAccuracyForMinChiSqTechnique(min_target_star_prediction_all, target_star_type):
     """

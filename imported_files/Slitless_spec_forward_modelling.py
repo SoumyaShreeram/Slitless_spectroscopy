@@ -70,6 +70,13 @@ def decideNumHotStars(hot_stars):
     stars_divide = [hot_stars, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1-hot_stars, 0.0, 0.0]
     return stars_divide
 
+def generateHotStarArr(num_stars):
+    hot_stars_arr = []
+    for i in range(num_stars+1):
+        hot_stars_arr.append(i/num_stars)
+    return hot_stars_arr
+
+
 def generateLimits(x_start, y_start, u_pix):
     limits = []
     if isinstance(u_pix, (int, float)):
@@ -155,13 +162,36 @@ def mapToFOVinPixels(x_pos, y_pos, u_pix):
         funcY = interp1d([np.min(y_pos), np.max(y_pos)],[0, u_pix[1]-1])        
     return funcX(np.abs(x_pos)), funcY(y_pos)
 
-def checkForTotalStarCount(star_percent, idx):
-    # TODO: add this to the stars divide function
-    if idx == 0:
-        star_percent = star_percent - 0.03
-    else: 
-        star_percent = star_percent + 0.03
-    return star_percent
+def calculatedTotalStars(num_hot_st, num_cold_st, tot_stars):
+    if int(num_hot_st)+int(num_cold_st) != tot_stars:
+        diff1 = int(num_hot_st)-num_hot_st
+        diff2 = int(num_cold_st)-num_cold_st
+        
+        if np.abs(diff1) > np.abs(diff2):
+            num_hot_st = int(num_hot_st)+1
+        else:
+            num_cold_st = int(num_cold_st)+1
+    return int(num_hot_st), int(num_cold_st)
+
+def checkTotalStars(idx, star_percent, tot_stars):
+    # for all the hot stars
+    if idx < 5: 
+        num_hot_st = star_percent*tot_stars
+        num_cold_st = (1-star_percent)*tot_stars
+        out_stars, _ = calculatedTotalStars(num_hot_st, num_cold_st, tot_stars)
+    # reverse rols
+    else:
+        num_cold_st = star_percent*tot_stars
+        num_hot_st = (1-star_percent)*tot_stars
+        _, out_stars = calculatedTotalStars(num_hot_st, num_cold_st, tot_stars)
+    return out_stars
+
+def printHotColdStars(idx, num_stars):
+    if idx < 5:
+        print('Number of hot stars: %d'%num_stars)
+    else:
+        print('Number of cold stars: %d'%num_stars)
+    return
 
 def associateSpectraToStars(waves_k, stars_divide, tot_stars, flux_LSF2D, params, print_msg):
     """
@@ -181,22 +211,21 @@ def associateSpectraToStars(waves_k, stars_divide, tot_stars, flux_LSF2D, params
     type_id = []
     
     # to get the right result for the iteration
-    tot_stars = tot_stars+1
+    #tot_stars = tot_stars+1
     
-    for idx, star_percent in enumerate(stars_divide):
+    for idx, star_percent in enumerate(stars_divide):        
         if star_percent*tot_stars != 0:
+            num_hot_cold_stars = checkTotalStars(idx, star_percent, tot_stars)
+            printHotColdStars(idx, num_hot_cold_stars)
             
-            if star_percent == 0.5 and (tot_stars-1)%2:               
-                star_percent = checkForTotalStarCount(star_percent, idx)
-            
-            for i in range(int(star_percent*tot_stars)):
-                # keep track of the type of the star
-                type_id.append(label_arr[idx])
-                
-                # add the spectra for the star into the array
-                flux_k2D = np.append(flux_k2D, [flux_LSF2D[idx]], axis=0)
-            if print_msg:
-                print('%d stars at Teff = %s K, log g = %s'%(star_percent*tot_stars, params[idx][0], params[idx][1]))
+            for sp in range(num_hot_cold_stars):
+                    # keep track of the type of the star
+                    type_id.append(label_arr[idx])
+                    
+                    # add the spectra for the star into the array
+                    flux_k2D = np.append(flux_k2D, [flux_LSF2D[idx]], axis=0)
+                    if print_msg:
+                        print('%d stars at Teff = %s K, log g = %s'%(star_percent*tot_stars, params[idx][0], params[idx][1]))
             
         # if there are no stars with the chosen spectrum
         else:            

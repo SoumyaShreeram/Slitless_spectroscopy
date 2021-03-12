@@ -39,6 +39,7 @@ from mpl_toolkits import axes_grid1
 # personal file imports
 import Simulating_Spectra as ss
 import Fitting_and_pdfs as fap
+import Slitless_spec_forward_modelling as ssfm
 
 """### 1. Functions for labeling plots
 """
@@ -167,13 +168,14 @@ def plotMagDiffs(mag_H, mag_Ks, forground_star_cut, max_stars):
     """
     fig, ax = plt.subplots(1,1,figsize=(9,8))
     
-    ax.plot(mag_H-mag_Ks, mag_Ks, 'g.')
+    ax.plot(mag_H-mag_Ks, mag_Ks, 'g.', markersize=2.5)
     
     #plot vertical line signifying the cut-off
     ax.axvline(forground_star_cut, color='k')
     
     ax.invert_yaxis()    
-    setLabel(ax, r'H-$K_s$ (mag)', r'$K_s$ (mag)', '', 'default', 'default', legend=False)
+    setLabel(ax, r'H-$K_s$ (mag)', r'$K_s$ (mag)', '', [np.min(mag_H-mag_Ks), np.max(mag_H-mag_Ks)], [np.max(mag_Ks), np.min(mag_Ks)], legend=False)
+    ax.grid(False)
     
     # print foreground population
     ss.printForgroundPopulation(mag_H-mag_Ks, max_stars)
@@ -235,13 +237,16 @@ def plotForegroundGCstars(foreground_stars, gc_stars):
     fig, ax = plt.subplots(2,1,figsize=(9,18))
     
     # plotting both the foreground and gc stars
-    ax[0].plot(np.arange(len(foreground_stars)), foreground_stars, '.', color= 'purple', alpha=0.9, marker="1", markersize=10, label='Foreground stars')
-    ax[0].plot(np.arange(len(foreground_stars)), gc_stars,'.', color= '#ebdf09', alpha=0.9, marker="*", markersize=10, label='GC stars')
-    setLabel(ax[0], 'Grid number', 'Number of stars', '', 'default', 'default', legend=True)
+    ax[0].plot(np.arange(len(foreground_stars)), foreground_stars, '.', color= 'k', alpha=0.9, marker="*", markersize=10, label='Foreground stars')
+    ax[0].plot(np.arange(len(foreground_stars)), gc_stars,'.', color= 'r', alpha=0.9, marker="*", markersize=10, label='GC stars')
+    setLabel(ax[0], 'Grid or pointing number', 'Number of stars', '', [0, len(foreground_stars)], 'default', legend=True)
+    ax[0].grid(False)
+    ax[0].legend(loc='upper right')
     
     # plotting only the foreground stars
     ax[1].plot(np.arange(len(foreground_stars)), foreground_stars, '.', color= 'purple', alpha=0.9, marker="1", markersize=10, label='Foreground stars')
     setLabel(ax[1], 'Grid number', '', '', 'default', 'default', legend=True)
+    ax[1].legend(loc='upper right')    
     return
 
 """
@@ -278,19 +283,19 @@ def visualizingNeighbours(idx, x_pos, y_pos, x_FOV, y_FOV, star_neighbours):
     @x_pos, y_pos :: positions of all the stars in the given FOV
     @star_neighbours :: ndarray holding info about the neighbours' [x_pos, y_pos, mag_Ks, mag_H] for all stars in the given set
     """
-    fig, ax = plt.subplots(1,1,figsize=(9,8))
+    fig, ax = plt.subplots(1,1,figsize=(13,8))
     
     # plotting all the stars in the FOV
-    ax.plot(x_pos, y_pos, '.', color="grey")
+    ax.plot(x_pos, y_pos, '.', color="#a3a19b")
         
     # plotting all the neighbours outside FOV to the star of interest
     ax.plot(star_neighbours[1][idx][0], star_neighbours[1][idx][1], 'o', color="#34ebc6", markersize=12, label='All neighbours')
     
     # plotting all the neighbours inside FOV to the star of interest
-    ax.plot(star_neighbours[0][idx][0], star_neighbours[0][idx][1], "b*", label='Neighbours within defined FoV')
+    ax.plot(star_neighbours[0][idx][0], star_neighbours[0][idx][1], "b*", label='Neighbours within FoV')
     
     # the star of interest itself
-    ax.plot(x_FOV[idx], y_FOV[idx], 'r*', markersize=15, label='Star of concern')
+    ax.plot(x_FOV[idx], y_FOV[idx], 'r*', markersize=15, label='Target Star')
     
     setLabel(ax, 'x-position (pixels)', 'y-position (pixels)', '', 'default', 'default', legend=True)
     
@@ -298,6 +303,7 @@ def visualizingNeighbours(idx, x_pos, y_pos, x_FOV, y_FOV, star_neighbours):
     print('Number of neighbouring stars in FOV:', len(star_neighbours[0][idx][0]))
     print('Number of neighbouring stars in effective FOV:', len(star_neighbours[1][idx][0]))
     shortenXYaxisTicks(ax)
+    plt.tight_layout()
     return
 
 def plotAllStarsWithNneighbours(star_neighbours, x_pos, y_pos, stars_with_n_neighbours):
@@ -324,15 +330,15 @@ def showTheRegionOfAnalysis(selected_c_pxls, stars_outside_FOV, x_start, y_start
     """
     Function plots the region that is considered for the analysis
     """
-    fig, ax = plt.subplots(1,1,figsize=(16,8))
+    fig, ax = plt.subplots(1,1,figsize=(10,6))
 
     # plotting the stars within the FOV
-    ax.plot(selected_c_pxls[0], selected_c_pxls[1], ".", color= '#e8d55a',\
-            alpha=0.9, marker="*", markersize=10, label='Within FOV')
+    ax.plot(selected_c_pxls[0], selected_c_pxls[1], ".", color= '#cfbbba',\
+            alpha=0.9, marker="*", markersize=0.5, label='Stars')
 
     # create a Rectangle patch
     rect = Rectangle((x_start, y_start),u_pix,u_pix,linewidth=1,edgecolor='r',\
-                     facecolor='None', zorder=10, label='FOV')
+                     facecolor='None', zorder=10, label='FoV')
     
     # left Rectangle patch    
     rect_left = Rectangle((np.min(stars_outside_FOV[0]), y_start), \
@@ -340,7 +346,7 @@ def showTheRegionOfAnalysis(selected_c_pxls, stars_outside_FOV, x_start, y_start
                           facecolor='None', zorder=10, hatch='/')
     
     # right Rectangle patch
-    rect_right = Rectangle((x_start+u_pix, y_start), np.max(stars_outside_FOV[0])-x_start-u_pix,u_pix,linewidth=1,edgecolor='r', facecolor='None', zorder=10, hatch='/', label='Outside defined FOV')
+    rect_right = Rectangle((x_start+u_pix, y_start), np.max(stars_outside_FOV[0])-x_start-u_pix,u_pix,linewidth=1,edgecolor='r', facecolor='None', zorder=10, hatch='/', label='Outside defined FoV')
 
     # add the patch to the Axes
     ax.add_patch(rect)
@@ -348,7 +354,48 @@ def showTheRegionOfAnalysis(selected_c_pxls, stars_outside_FOV, x_start, y_start
     ax.add_patch(rect_right)
     
     # set labels
-    setLabel(ax, 'x-axis position', 'y-axis position', 'Region considered for the analysis', 'default', 'default', legend=True)
+    setLabel(ax, 'x-axis position', 'y-axis position', '', [np.min(selected_c_pxls[0]), np.max(selected_c_pxls[0])], [np.min(selected_c_pxls[1]), np.max(selected_c_pxls[1])], legend=True)
+    ax.legend(loc='upper right')
+    
+    plt.tight_layout()
+    ax.grid(False)
+    return
+
+def showGrid(selected_c_pxls, x_all, y_all, mag_H_all, mag_Ks_all, u_pix_arr):
+    """
+    Function shows how the central catalogue can be divided into grids
+    
+    """
+    fig, ax = plt.subplots(1,1,figsize=(10,7))
+
+    # plotting the stars within the FOV
+    ax.plot(selected_c_pxls[0], selected_c_pxls[1], ".", color= '#cfbbba',\
+            alpha=0.9, marker="*", markersize=0.5)
+
+    # arrays that set the sizes of the grids
+    steps_x = np.arange(np.min(x_all), np.max(x_all), u_pix_arr[0])
+    steps_y = np.arange(np.min(y_all), np.max(y_all), u_pix_arr[1])
+    
+    # looping over every grid of size u_pix
+    for i, x in enumerate(steps_x):
+        for j, y in enumerate(steps_y):
+            limits = ssfm.generateLimits(x, y, u_pix_arr)
+            x_grid, y_grid, _, _ = ssfm.selectFOV(limits, x_all, y_all, mag_H_all, mag_Ks_all, print_msg=False)
+            
+            # create a Rectangle patch
+            rect = Rectangle((limits[0], limits[2]), limits[1], limits[3], linewidth=1,edgecolor='r',\
+                     facecolor='None', zorder=10)
+            
+            # add the patch to the Axes
+            ax.add_patch(rect)
+            
+            # add text
+            plt.text(limits[0]+150, limits[2]+150,'%d'%(len(steps_y)*i+j))
+            
+    # set labels
+    setLabel(ax, 'x-axis position (pixels)', 'y-axis position (pixels)', '', [np.min(selected_c_pxls[0]), np.max(selected_c_pxls[0])], [np.min(selected_c_pxls[1]), np.max(selected_c_pxls[1])], legend=False)
+    plt.tight_layout()
+    ax.grid(False)
     return
 
 def plotFluxMatAroundAstar(x_FOV, y_FOV, total_neighbours, disperse_range, width, u_pix_arr, n_stars, region_idx):
@@ -453,30 +500,39 @@ def plotChiSqPredictions(ax, cold_probability, hot_probability, linestyle, chi_s
          legend=True)
     return
 
-def plotChiSqAllTemplates(ax, pal, norm_chi_sqs, hot_stars_arr, resulting_params_all, star_idx, chi_sq_cut):
+def plotChiSqAllTemplates(ax, pal, resulting_params_all, hot_stars_arr, n_star):
     """
     Function to plot the chi-squares for all the templates
 
     """
+    # choose the region 0
+    star_idx = 0
+    
+    region_one_chi_sqs = np.concatenate(resulting_params_all[star_idx])
+    norm_chi_sqs = region_one_chi_sqs/np.max(region_one_chi_sqs)
+    print(r'There are %d number of total templates that were fitted to the region containing %d stars'%(len(norm_chi_sqs), n_star))
+    
     num_perms = np.arange(len(norm_chi_sqs))
     len_pems = []
-    ax.hlines(chi_sq_cut, np.min(num_perms), np.max(num_perms), colors='r', linestyle='dashed', linewidth=2, zorder=2)
     
     for i, hot_stars in enumerate(hot_stars_arr):        
         len_pems.append(len(resulting_params_all[star_idx][i]))
         
         if i ==0: # for the first case
-            ax.plot(num_perms[0:len_pems[-1]], norm_chi_sqs[0:len_pems[i]], marker='.', color=pal[i], label='%d hor stars'%(hot_stars*100))
+            ax.plot(num_perms[0:len_pems[-1]], norm_chi_sqs[0:len_pems[i]], marker='.', color=pal[i], label='$h_*$ = %d; $\ \Gamma (h_*)$ = %d'%(hot_stars*n_star, len(num_perms[0:len_pems[-1]])))
         
         # later cases, getting the start and end points and plotting them
         if i>0:  
             start = np.sum(len_pems[0:-1]).astype(int)
-            ax.plot(num_perms[start:start+len_pems[-1]], norm_chi_sqs[start:start+len_pems[-1]], '-', color=pal[i], label='%d %s hot stars'%(hot_stars*100, '%'))
+            x_axis = num_perms[start:start+len_pems[-1]]
+            y_axis = norm_chi_sqs[start:start+len_pems[-1]]
+            ax.plot(x_axis ,y_axis, '-', color=pal[i], label='$h_*$ = %d; $\ \Gamma (h_*)$ = %d'%(hot_stars*n_star, len(num_perms[0:len_pems[-1]])))
     ax.plot(num_perms, norm_chi_sqs, 'k.', markersize=2)
     
     # set labels
-    setLabel(ax, 'Template number', 'Chi-squares', '', 'default', \
-                'default', legend=True)   
+    setLabel(ax, 'Template numbers for fitting for $\mathcal{R}_0(n)$ ', 'Normalized best-fit estimator, $\mathbf{\Omega}$', '', [np.min(num_perms), np.max(num_perms)], 'default', legend=True)   
+    ax.grid(False)
+    plt.tight_layout()
     return
 
 """
@@ -519,13 +575,11 @@ def plotColormap(fig, ax, colormap, acc_vals_arr, n_star_arr, num_lowest_temps):
             text = ax.text(j, i, "%d"%(acc_vals_arr[j, i]*100), ha="center", va="center", color="k")
     
     # set the label for the plot
-    setLabel(ax, 'Total number of stars in the region', 'Number of lowest chi-square templates', 'Effect of statistics\n (number of templates chosen) on the accuracy of stellar type prediction\n', 'default', \
+    setLabel(ax, r"Total number of stars in the region, $\mathcal{\mathbf{R}}_N$", r"Number of templates, $\beta$", 'Effect of statistics\n (number of templates chosen) on the accuracy of stellar type prediction\n', 'default', \
                 'default', legend=False)
     
     addColorbar(psm)
-    ax.grid(False)  
-    
-    fig.tight_layout()    
+    ax.grid(False)    
     return 
 
 def plotAccuracyColormap(n_star_arr, num_lowest_temps, num_splits, colormap):
@@ -539,13 +593,16 @@ def plotAccuracyColormap(n_star_arr, num_lowest_temps, num_splits, colormap):
     acc_vals_arr = np.zeros((0, len(num_lowest_temps)))
     
     for n_s in n_star_arr:
-        acc_vals = np.load('Data/Chi_sq_vals/%d_stars_accuracy_vals_%d_pixel_scale.npy'%(n_s, num_splits), allow_pickle=True)
+        acc_vals = np.load('Data/Stellar_chi_sq_vals/%d_stars_accuracy_vals_%d_pixel_scale.npy'%(n_s, num_splits), allow_pickle=True)
+        
         acc_vals_arr = np.append(acc_vals_arr, [acc_vals], axis=0)
     
     fig, ax = plt.subplots(1, 1, figsize=(12, 10))
     plotColormap(fig, ax, colormap, acc_vals_arr, n_star_arr, num_lowest_temps)
     
-    plt.savefig('Figures/accuracy_map_for_diff_stats.png', facecolor='w')
+    ax.set_title('Pixel Scale, $\Delta=$ %d'%num_splits)
+    
+    plt.savefig('Pictures/accuracy_map_for_diff_stats.png', facecolor='w')
     return acc_vals_arr
 
 def plotAccuracyPixelScale(pixel_scale, num_lowest_temps, colormap, n_star_arr):
@@ -554,21 +611,20 @@ def plotAccuracyPixelScale(pixel_scale, num_lowest_temps, colormap, n_star_arr):
     n_star_arr, num_lowest_temps :: x and y axis labels arrays
     colormap :: check matplotlib colormap for all possible options    
     """
-    fig, ax = plt.subplots(1, len(n_star_arr), figsize=(13, 12))
+    fig, ax = plt.subplots(len(n_star_arr), 1, figsize=(8, 9*len(n_star_arr)))
     
     for i, n_s in enumerate(n_star_arr):
         # get these vals from files, set parameters
         acc_vals_arr = np.zeros((0, len(num_lowest_temps)))
 
         for p_s in pixel_scale:
-            acc_vals = np.load('Data/Chi_sq_vals/%d_stars_accuracy_vals_%d_pixel_scale.npy'%(n_s, p_s), allow_pickle=True)
+            acc_vals = np.load('Data/Stellar_chi_sq_vals/%d_stars_accuracy_vals_%d_pixel_scale.npy'%(n_s, p_s), allow_pickle=True)
             acc_vals_arr = np.append(acc_vals_arr, [acc_vals], axis=0)
 
         if len(n_star_arr)>1:
-            ax = ax[i]
-            
-        plotColormap(fig, ax, colormap, acc_vals_arr, pixel_scale, num_lowest_temps)
-        ax.set_title('Effect of pixel scale on accuracy:\n %d stars'%n_s)
+            ax_id = ax[i]
 
-    plt.savefig('Figures/accuracy_map_for_diff_pixel_scale.png', facecolor='w')    
+        plotColormap(fig, ax_id, colormap, acc_vals_arr, pixel_scale, num_lowest_temps)
+        ax_id.set_title('%d stars'%n_s)
+        ax_id.set_xlabel('Pixel Scale, $\Delta$')
     return

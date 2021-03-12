@@ -135,7 +135,7 @@ def generateSaveTemplates(type_id, flux_LSF2D, flux_k2D, template_dir, num_stars
     # generate all possible permutations that exist for the given distribution of stars
     perms = distinct_permutations(type_id)
     perms = list(perms)
-        
+     
     # generate the directory to save the permutations
     generateDirToSavePerms(template_dir, num_stars, hot_stars*num_stars)       
 
